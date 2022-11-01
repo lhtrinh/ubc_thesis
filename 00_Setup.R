@@ -1,9 +1,9 @@
 library(tidyverse)
-library(readxl)
+library(haven)
 
 
 # load data
-dat_raw <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP2641_DATA_PT_Qx_RegistryInfo_BIO.csv")
+dat_raw <- read_sav("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP2641_DATA_PT_Qx_RegistryInfo_BIO.sav")
 # change all variable names to lowercase
 colnames(dat_raw) <- tolower(colnames(dat_raw))
 colnames(dat_raw)
@@ -32,3 +32,9 @@ colnames(dat_cat) <- tolower(str_replace_all(colnames(dat_cat), " ", "_"))
 
 names(dat_dict)
 names(dat_cat)
+
+
+
+
+
+
