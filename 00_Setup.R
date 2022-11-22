@@ -10,6 +10,15 @@ dat_raw <- read_sav("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP2641_DATA_PT_
 colnames(dat_raw) <- tolower(colnames(dat_raw))
 colnames(dat_raw)
 
+# load match indicators
+match_ind <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP2641_MatchIndicator.csv")
+head(match_ind)
+colnames(match_ind) <- tolower(colnames(match_ind))
+colnames(match_ind)
+
+# merge match indicators with raw data
+dat <- merge(dat_raw, match_ind)
+
 
 # load data dictionary files
 

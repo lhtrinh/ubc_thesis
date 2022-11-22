@@ -9,7 +9,7 @@ source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_Setup.R")
 #=========================================================#
 
 # Remove one ID that was selected in error
-temp1 <- dat_raw %>%
+temp1 <- dat %>%
   filter(studyid!="PB000429")
 
 # Remove duplicate IDs
@@ -48,7 +48,6 @@ dat_noimp <- temp1 %>%
     ethnicity=coalesce(sdc_eb_white, !!! select(., matches("eb"))),
     bmi=coalesce(pm_tanitabmi, pm_bioimped_bmi, pm_bmi_sr)
   )
-
 # smoking status: current daily, current occasional, past, never
 # use smk_cig_status
 temp1 %>%
