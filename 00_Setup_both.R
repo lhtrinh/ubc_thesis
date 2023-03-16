@@ -27,15 +27,15 @@ temp1 <- dat_raw %>%
                         labels=c("underweight", "normal", "overweight", "obese")))
 
 
-### Molecular subtype
-temp2 <- temp1 %>%
-  mutate(hr_subgroup = case_when(
-    (bccr_er_status_final=="Positive" | bccr_pr_status_final=="Positive") & bccr_her2_status_final=="Negative" ~ "luminal_a",
-    (bccr_er_status_final=="Positive" | bccr_pr_status_final=="Positive") & bccr_her2_status_final=="Positive" ~ "luminal_b",
-    bccr_er_status_final=="Negative" & bccr_pr_status_final=="Negative" & bccr_her2_status_final=="Positive" ~ "her2_positive",
-    bccr_er_status_final=="Negative" & bccr_pr_status_final=="Negative" & bccr_her2_status_final=="Negative" ~ "triple_negative",
-    TRUE ~ "unknown"
-  ))
+# ### Molecular subtype
+# temp2 <- temp1 %>%
+#   mutate(hr_subgroup = case_when(
+#     (bccr_er_status_final=="Positive" | bccr_pr_status_final=="Positive") & bccr_her2_status_final=="Negative" ~ "luminal_a",
+#     (bccr_er_status_final=="Positive" | bccr_pr_status_final=="Positive") & bccr_her2_status_final=="Positive" ~ "luminal_b",
+#     bccr_er_status_final=="Negative" & bccr_pr_status_final=="Negative" & bccr_her2_status_final=="Positive" ~ "her2_positive",
+#     bccr_er_status_final=="Negative" & bccr_pr_status_final=="Negative" & bccr_her2_status_final=="Negative" ~ "triple_negative",
+#     TRUE ~ "unknown"
+#   ))
 
 
 ### Family history of breast cancer
@@ -84,9 +84,20 @@ temp1 <- temp2 %>%
     ))
 
 
+# another breast cancer subtype
+temp2 <- temp1 %>%
+  mutate(hr_subgroup_alt=case_when(
+    er_status=="negative" & pr_status=="negative" & her2_status=="negative" ~ "triple_negative",
+    her2_status=="positive" ~ "her2_positive",
+    er_status=="positive" | pr_status=="positive" ~ "er/pr_positive",
+    gp=='CNTL' ~ "control",
+    TRUE ~ "unknown"
+  ))
 
 
-dat <- temp1
+
+
+dat <- temp2
 
 
 

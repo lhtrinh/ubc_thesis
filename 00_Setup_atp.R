@@ -21,14 +21,16 @@ er <- atp_hormones %>%
   group_by(participantkey) %>%
   count(acr_estrogen_receptor_assay) %>%
   mutate(
-    acr_er = ifelse(
-      str_detect(acr_estrogen_receptor_assay, "Positive"), "Positive",
-      ifelse(str_detect(acr_estrogen_receptor_assay, "Negative"), "Negative",
+    er_status = ifelse(
+      str_detect(acr_estrogen_receptor_assay, "Positive"), "positive",
+      ifelse(str_detect(acr_estrogen_receptor_assay, "Negative"), "negative",
              NA))) %>%
-  select(participantkey, acr_er) %>%
-  arrange(participantkey, acr_er) %>%
-  fill(acr_er, .direction = "down") %>%
-  unique()
+  select(participantkey, er_status) %>%
+  arrange(participantkey, er_status) %>%
+  fill(er_status, .direction = "down") %>%
+  mutate(er_status=replace_na(er_status, "unknown")) %>%
+  unique() %>%
+  ungroup()
 
 
 pr <- atp_hormones %>%
@@ -36,27 +38,31 @@ pr <- atp_hormones %>%
   group_by(participantkey) %>%
   count(acr_progesterone_receptor_assay) %>%
   mutate(
-    acr_pr = ifelse(
-      str_detect(acr_progesterone_receptor_assay, "Positive"), "Positive",
-      ifelse(str_detect(acr_progesterone_receptor_assay, "Negative"), "Negative",
+    pr_status = ifelse(
+      str_detect(acr_progesterone_receptor_assay, "Positive"), "positive",
+      ifelse(str_detect(acr_progesterone_receptor_assay, "Negative"), "negative",
              NA))) %>%
-  select(participantkey, acr_pr) %>%
-  arrange(participantkey, acr_pr) %>%
-  fill(acr_pr, .direction = "down") %>%
-  unique()
+  select(participantkey, pr_status) %>%
+  arrange(participantkey, pr_status) %>%
+  fill(pr_status, .direction = "down") %>%
+  mutate(pr_status=replace_na(pr_status, "unknown")) %>%
+  unique() %>%
+  ungroup()
+
 
 her2 <- atp_hormones %>%
   select(participantkey, acr_her2_assay) %>%
   group_by(participantkey) %>%
   count(acr_her2_assay) %>%
   mutate(
-    acr_her2 = ifelse(
-      str_detect(acr_her2_assay, "Positive"), "Positive",
-      ifelse(str_detect(acr_her2_assay, "Negative"), "Negative",
+    her2_status = ifelse(
+      str_detect(acr_her2_assay, "Positive"), "positive",
+      ifelse(str_detect(acr_her2_assay, "Negative"), "negative",
              NA))) %>%
-  select(participantkey, acr_her2) %>%
-  arrange(participantkey, acr_her2) %>%
-  fill(acr_her2, .direction = "down") %>%
+  select(participantkey, her2_status) %>%
+  arrange(participantkey, her2_status) %>%
+  fill(her2_status, .direction = "down") %>%
+  mutate(her2_status=replace_na(her2_status, "unknown")) %>%
   unique()
 
 
@@ -106,6 +112,8 @@ atp_dat[atp_dat==-7] <- NA
 # Create new variables from data
 #====================#
 
+atp_dat$cohort <- "atp"
+
 
 ### BMI and BMI categories
 temp1 <- atp_dat %>%
@@ -116,10 +124,10 @@ temp1 <- atp_dat %>%
 ### Molecular subtype
 atp_dat <- temp1 %>%
   mutate(hr_subgroup = case_when(
-    (acr_er=="Positive" | acr_pr=="Positive") & acr_her2=="Negative" ~ "luminal_a",
-    (acr_er=="Positive" | acr_pr=="Positive") & acr_her2=="Positive" ~ "luminal_b",
-    acr_er=="Negative" & acr_pr=="Negative" & acr_her2=="Positive" ~ "her2_positive",
-    acr_er=="Negative" & acr_pr=="Negative" & acr_her2=="Negative" ~ "triple_negative",
+    (er_status=="positive" | pr_status=="positive") & her2_status=="negative" ~ "luminal_a",
+    (er_status=="positive" | pr_status=="positive") & her2_status=="positive" ~ "luminal_b",
+    er_status=="negative" & pr_status=="negative" & her2_status=="positive" ~ "her2_positive",
+    er_status=="negative" & pr_status=="negative" & her2_status=="negative" ~ "triple_negative",
     TRUE ~ "unknown"
   ))
 

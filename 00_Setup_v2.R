@@ -57,6 +57,8 @@ bc_dat[bc_dat==-7] <- NA
 #====================#
 
 
+bc_dat$cohort <- "bcgp"
+
 
 ### BMI and BMI categories
 temp1 <- bc_dat %>%
@@ -66,11 +68,14 @@ temp1 <- bc_dat %>%
 
 ### Molecular subtype
 bc_dat <- temp1 %>%
+  mutate(er_status=tolower(bccr_er_status_final),
+         pr_status=tolower(bccr_pr_status_final),
+         her2_status=tolower(bccr_her2_status_final)) %>%
   mutate(hr_subgroup = case_when(
-    (bccr_er_status_final=="Positive" | bccr_pr_status_final=="Positive") & bccr_her2_status_final=="Negative" ~ "luminal_a",
-    (bccr_er_status_final=="Positive" | bccr_pr_status_final=="Positive") & bccr_her2_status_final=="Positive" ~ "luminal_b",
-    bccr_er_status_final=="Negative" & bccr_pr_status_final=="Negative" & bccr_her2_status_final=="Positive" ~ "her2_positive",
-    bccr_er_status_final=="Negative" & bccr_pr_status_final=="Negative" & bccr_her2_status_final=="Negative" ~ "triple_negative",
+    (er_status=="positive" | pr_status=="positive") & her2_status=="negative" ~ "luminal_a",
+    (er_status=="positive" | pr_status=="positive") & her2_status=="positive" ~ "luminal_b",
+    er_status=="negative" & pr_status=="negative" & her2_status=="positive" ~ "her2_positive",
+    er_status=="negative" & pr_status=="negative" & her2_status=="negative" ~ "triple_negative",
     TRUE ~ "unknown"
   ))
 
