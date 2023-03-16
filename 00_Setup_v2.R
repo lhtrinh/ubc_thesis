@@ -65,7 +65,7 @@ temp1 <- bc_dat %>%
                         labels=c("underweight", "normal", "overweight", "obese")))
 
 ### Molecular subtype
-temp2 <- temp1 %>%
+bc_dat <- temp1 %>%
   mutate(hr_subgroup = case_when(
     (bccr_er_status_final=="Positive" | bccr_pr_status_final=="Positive") & bccr_her2_status_final=="Negative" ~ "luminal_a",
     (bccr_er_status_final=="Positive" | bccr_pr_status_final=="Positive") & bccr_her2_status_final=="Positive" ~ "luminal_b",
@@ -75,139 +75,137 @@ temp2 <- temp1 %>%
   ))
 
 
-### Family history of breast cancer
-temp1 <- temp2 %>%
-  mutate(
-    fam_hist_breast1=ifelse(is.na(dis_cancer_m_breast) & is.na(dis_cancer_sib_breast), 0, 1)) %>%
-  mutate(
-    fam_hist_breast=ifelse(fam_hist_breast1==1, 1,
-                           ifelse(!is.na(dis_cancer_fam_ever), 0, NA)))
-
-### alcohol consumption
-temp2 <- temp1 %>%
-  mutate(alc_cur_cat = case_when(
-    alc_cur_freq == 0 ~ "never",
-    alc_cur_freq %in% c(1,2,3,4) ~ "1 or less a week",
-    alc_cur_freq == 5 ~ "2-3 times a week",
-    alc_cur_freq == 6 ~ "4-5 times a week",
-    alc_cur_freq == 7 ~ "6-7 times a week"
-  ))
-
-temp1 <- temp2 %>%
-  mutate(alc_binge_cat = case_when(
-    alc_binge_freq_female == 0 ~ "never",
-    alc_binge_freq_female %in% c(1,2,3,4,5) ~ "1 or less a week",
-    alc_binge_freq_female == 6 ~ "2-3 times a week",
-    alc_binge_freq_female == 7 ~ "4-5 times a week",
-    alc_binge_freq_female == 8 ~ "6-7 times a week"
-  ))
-
-
-# ethnicity
-temp2 <- temp1 %>%
-  mutate(ethnicity = ifelse(sdc_eb_white==1, "white", "other"))
-
-# smoking
-temp1 <- temp2 %>%
-  mutate(
-    smk_cig_dur = as.numeric(coalesce(
-      smk_cig_daily_cur_dur,
-      smk_cig_former_daily_dur,
-      smk_cig_heaviest_dur)),
-    smk_cig_qty = coalesce(
-      smk_cig_daily_avg_qty,
-      smk_cig_former_daily_qty,
-      smk_cig_heaviest_qty
-    ))
-
-
-
-
-
-temp1 %>% count(smk_cig_status)
-
-
-
-
-
-
-###############################################################
-
-table(bc_dat$gp)
-
-# BMI
-with(temp1, by(bmi, gp, mean, na.rm=TRUE))
-with(temp1, by(bmi, gp, describe))
-
-with(temp1, by(bmi_cat, gp, summary))
-with(temp1, proportions(table(gp, bmi_cat), 1))
-
-
-# Menopause status
-with(temp1, by(menopause_status, gp, table))
-
-
-# Age at cancer diagnosis
-with(temp1, by(age_at_diagnosis, gp, describe))
-
-
-
-# hormone receptor status subgroups
-with(temp2, by(sdc_age_calc, gp, summary))
-
-# age at menarche
-with(temp1, by(wh_menstruation_age, gp, describe))
-
-# number or pregnancies
-with(temp1, by(wh_gravidity, gp, describe))
-with(temp1, by(wh_preg_first_age, gp, describe))
-with(temp1, by(wh_live_births, gp, describe))
-
-# hrt use
-with(temp1, by(wh_hrt_ever, gp, summary))
-
-# age at hrt
-with(temp1, by(wh_hrt_age, gp, describe))
-
-# family history of breast cancer
-temp1 %>%
-  group_by(gp, dis_cancer_fam_ever) %>%
-  count(dis_cancer_m_breast)
-
-temp1 %>%
-  group_by(gp, dis_cancer_fam_ever) %>%
-  count(dis_cancer_sib_breast)
-
-temp1 %>%
-  count(gp, fam_hist_breast)
-
-
-# alcohol use
-temp2 %>% count(gp, alc_cur_cat)
-
-temp1 %>% count(gp, alc_binge_cat)
-
-# smoking
-temp1 %>% count(gp, smk_cig_status)
-temp1 %>% count(gp, smk_cig_daily_cur_qty)
-temp1 %>% count(gp, smk_cig_daily_avg_qty)
-
-with(temp1, by(smk_cig_dur, gp, describe))
-temp1 %>% count(gp, smk_cig_qty)
-
-temp1 %>% filter(smk_cig_status %in% c(1,2,3)) %>%
-  count(gp, smk_cig_status)
-
-with(temp1[temp1$smk_cig_status %in% c(1,2,3),], by(smk_cig_dur, gp, summary))
-
-
-#ethnicity
-temp2 %>% count(gp, ethnicity)
-
-# contraceptives
-temp1 %>% count(gp, wh_contraceptives_ever)
-with(temp1, by(wh_contraceptives_duration, gp, summary))
-
-# diet
-with(temp1, by(nut_veg_qty, gp, describe))
-with(temp1, by(nut_fruits_qty, gp, describe))
+# ### Family history of breast cancer
+# temp1 <- temp2 %>%
+#   mutate(
+#     fam_hist_breast1=ifelse(is.na(dis_cancer_m_breast) & is.na(dis_cancer_sib_breast), 0, 1)) %>%
+#   mutate(
+#     fam_hist_breast=ifelse(fam_hist_breast1==1, 1,
+#                            ifelse(!is.na(dis_cancer_fam_ever), 0, NA)))
+#
+# ### alcohol consumption
+# temp2 <- temp1 %>%
+#   mutate(alc_cur_cat = case_when(
+#     alc_cur_freq == 0 ~ "never",
+#     alc_cur_freq %in% c(1,2,3,4) ~ "1 or less a week",
+#     alc_cur_freq == 5 ~ "2-3 times a week",
+#     alc_cur_freq == 6 ~ "4-5 times a week",
+#     alc_cur_freq == 7 ~ "6-7 times a week"
+#   ))
+#
+# temp1 <- temp2 %>%
+#   mutate(alc_binge_cat = case_when(
+#     alc_binge_freq_female == 0 ~ "never",
+#     alc_binge_freq_female %in% c(1,2,3,4,5) ~ "1 or less a week",
+#     alc_binge_freq_female == 6 ~ "2-3 times a week",
+#     alc_binge_freq_female == 7 ~ "4-5 times a week",
+#     alc_binge_freq_female == 8 ~ "6-7 times a week"
+#   ))
+#
+#
+# # ethnicity
+# temp2 <- temp1 %>%
+#   mutate(ethnicity = ifelse(sdc_eb_white==1, "white", "other"))
+#
+# # smoking
+# temp1 <- temp2 %>%
+#   mutate(
+#     smk_cig_dur = as.numeric(coalesce(
+#       smk_cig_daily_cur_dur,
+#       smk_cig_former_daily_dur,
+#       smk_cig_heaviest_dur)),
+#     smk_cig_qty = coalesce(
+#       smk_cig_daily_avg_qty,
+#       smk_cig_former_daily_qty,
+#       smk_cig_heaviest_qty
+#     ))
+#
+#
+#
+#
+#
+#
+#
+#
+#
+#
+# ###############################################################
+#
+# table(bc_dat$gp)
+#
+# # BMI
+# with(temp1, by(bmi, gp, mean, na.rm=TRUE))
+# with(temp1, by(bmi, gp, describe))
+#
+# with(temp1, by(bmi_cat, gp, summary))
+# with(temp1, proportions(table(gp, bmi_cat), 1))
+#
+#
+# # Menopause status
+# with(temp1, by(menopause_status, gp, table))
+#
+#
+# # Age at cancer diagnosis
+# with(temp1, by(age_at_diagnosis, gp, describe))
+#
+#
+#
+# # hormone receptor status subgroups
+# with(temp2, by(sdc_age_calc, gp, summary))
+#
+# # age at menarche
+# with(temp1, by(wh_menstruation_age, gp, describe))
+#
+# # number or pregnancies
+# with(temp1, by(wh_gravidity, gp, describe))
+# with(temp1, by(wh_preg_first_age, gp, describe))
+# with(temp1, by(wh_live_births, gp, describe))
+#
+# # hrt use
+# with(temp1, by(wh_hrt_ever, gp, summary))
+#
+# # age at hrt
+# with(temp1, by(wh_hrt_age, gp, describe))
+#
+# # family history of breast cancer
+# temp1 %>%
+#   group_by(gp, dis_cancer_fam_ever) %>%
+#   count(dis_cancer_m_breast)
+#
+# temp1 %>%
+#   group_by(gp, dis_cancer_fam_ever) %>%
+#   count(dis_cancer_sib_breast)
+#
+# temp1 %>%
+#   count(gp, fam_hist_breast)
+#
+#
+# # alcohol use
+# temp2 %>% count(gp, alc_cur_cat)
+#
+# temp1 %>% count(gp, alc_binge_cat)
+#
+# # smoking
+# temp1 %>% count(gp, smk_cig_status)
+# temp1 %>% count(gp, smk_cig_daily_cur_qty)
+# temp1 %>% count(gp, smk_cig_daily_avg_qty)
+#
+# with(temp1, by(smk_cig_dur, gp, describe))
+# temp1 %>% count(gp, smk_cig_qty)
+#
+# temp1 %>% filter(smk_cig_status %in% c(1,2,3)) %>%
+#   count(gp, smk_cig_status)
+#
+# with(temp1[temp1$smk_cig_status %in% c(1,2,3),], by(smk_cig_dur, gp, summary))
+#
+#
+# #ethnicity
+# temp2 %>% count(gp, ethnicity)
+#
+# # contraceptives
+# temp1 %>% count(gp, wh_contraceptives_ever)
+# with(temp1, by(wh_contraceptives_duration, gp, summary))
+#
+# # diet
+# with(temp1, by(nut_veg_qty, gp, describe))
+# with(temp1, by(nut_fruits_qty, gp, describe))
