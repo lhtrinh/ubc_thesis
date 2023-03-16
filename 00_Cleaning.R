@@ -9,7 +9,7 @@ source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_Setup.R")
 #=========================================================#
 
 # Remove one ID that was selected in error
-temp1 <- dat %>%
+temp1 <- bc_dat %>%
   filter(studyid!="PB000429")
 
 # Remove duplicate IDs

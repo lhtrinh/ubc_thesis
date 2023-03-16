@@ -2,13 +2,15 @@ library(tidyverse)
 library(haven)
 library(readxl)
 library(lubridate)
+library(psych)
 
 
-# load data
-dat_raw <- read_sav("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP2641_DATA_PT_Qx_RegistryInfo_BIO.sav")
+## LOAD BCGP DATA
+
+bc_raw <- read_sav("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP2641_DATA_PT_Qx_RegistryInfo_BIO.sav")
 # change all variable names to lowercase
-colnames(dat_raw) <- tolower(colnames(dat_raw))
-colnames(dat_raw)
+colnames(bc_raw) <- tolower(colnames(bc_raw))
+colnames(bc_raw)
 
 # load match indicators
 match_ind <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP2641_MatchIndicator.csv")
@@ -17,9 +19,24 @@ colnames(match_ind) <- tolower(colnames(match_ind))
 colnames(match_ind)
 
 # merge match indicators with raw data
-dat <- merge(dat_raw, match_ind)
+dat <- merge(bc_raw, match_ind)
 
 
+
+
+## LOAD ATP DATA
+
+
+
+
+
+
+
+
+
+
+
+#########################################################
 # load data dictionary files
 
 
