@@ -1,3 +1,8 @@
+source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_Setup_both.R")
+
+
+
+# assign
 my_pink <- rgb(red=255, green=51, blue=153, maxColorValue = 255)
 my_grey <- rgb(red=118, green=113, blue=113, maxColorValue = 255)
 my_color <- c(my_pink, my_grey)
