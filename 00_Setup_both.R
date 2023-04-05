@@ -43,7 +43,7 @@ temp1 <- temp1 %>%
   mutate(hr_subgroup_alt=case_when(
     er_status=="negative" & pr_status=="negative" & her2_status=="negative" ~ "triple_negative",
     her2_status=="positive" ~ "her2_positive",
-    er_status=="positive" | pr_status=="positive" ~ "er/pr_positive",
+    (er_status=="positive" | pr_status=="positive") ~ "er/pr_positive",
     gp=='CNTL' ~ "control",
     TRUE ~ "unknown"
   ))

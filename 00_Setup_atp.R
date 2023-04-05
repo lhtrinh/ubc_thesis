@@ -50,7 +50,7 @@ atp_hormones_new <- atp_hormones[!duplicated(atp_hormones$participantkey),]
 
 
 
-
+# for cases, only select the first breast cancer diagnosis
 atp_cases_bio <- atp_cases_bio %>%
   filter(acr_cancer_site_aggregate=="Breast") %>%
   arrange(participantkey, acr_diagnosis_year)
@@ -84,7 +84,7 @@ atp_dat$gp[atp_dat$participantkey %in% atp_hormones_new$participantkey] <- "CASE
 
 
 
-# change date form
+# change date form for questionnaire completion date
 atp_dat$adm_qx_completion <- as.Date(atp_dat$adm_qx_completion)
 
 
@@ -104,5 +104,5 @@ atp_dat$cohort <- "atp"
 atp_dat$studyid <- as.character(atp_dat$participantkey)
 
 
-# rename age at diagnosis to match atp
+# rename age at diagnosis to match bcgp
 atp_dat <- rename(atp_dat, age_at_diagnosis=acr_age_at_diagnosis)
