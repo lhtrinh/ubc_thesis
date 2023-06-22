@@ -18,7 +18,9 @@ source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/01_Pilot.R")
 
 # Calculate CV for each technical replicate
 calc_cv <- function(dat, group_var){
+
   group_var <- enquo(group_var)
+
   replicate_cv <- dat %>%
     group_by(!!group_var) %>%
     summarise(across(contains("ion"),
@@ -26,11 +28,15 @@ calc_cv <- function(dat, group_var){
     ungroup() %>%
     summarise(across(contains("ion"),
                      median)) %>%
-    as_vector()
-  replicate_cv
+    t()
+
+  ion_cv_dat <- data.frame(ion=rownames(replicate_cv),
+                           median_cv=replicate_cv[,1])
+  rownames(ion_cv_dat) <- NULL
 }
 
-summary(calc_cv(pilot_meta, id))
+tech_rep_cvs <- calc_cv(pilot_meta, id)
+summary(tech_rep_cvs$med_cv)
 # median CVs range from 0.32% to 10.70%
 # all good
 
@@ -49,16 +55,18 @@ dups_meta %>% count(participantkey)
 
 
 blind_dup_cvs <- calc_cv(dups_meta, participantkey)
-summary(blind_dup_cvs)
-table(blind_dup_cvs>=20)
-proportions(table(blind_dup_cvs>=20))
+summary(blind_dup_cvs$med_cv)
+table(blind_dup_cvs$med_cv>=20)
+proportions(table(blind_dup_cvs$med_cv>=20))
+
 
 # 13 ions have median CVs > 20%
 
 ions_to_discard <- names(which(blind_dup_cvs >= 20))
 
 
-
+# export CV data set
+write.csv(blind_dup_cvs, file="C:/Users/lyhtr/OneDrive - UBC/Thesis/Output/PilotQC_MedianCV.csv")
 
 
 
