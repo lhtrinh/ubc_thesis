@@ -15,10 +15,12 @@ pilot_ids <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/2105_Study2
 # load metabolomics data
 # pilot_ions <- read_xlsx(path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Pilot/DATA.xlsx",
 #                         sheet="ions")
-pilot_ion_matrix <- read_xlsx(path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Pilot/DATA.xlsx",
-                              sheet="ion_matrix")
-pilot_annotation <- read_xlsx(path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Pilot/DATA.xlsx",
-                        sheet="annotation")
+pilot_ion_matrix <- read_xlsx(
+  path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Pilot/DATA.xlsx",
+  sheet="ion_matrix")
+pilot_annotation <- read_xlsx(
+  path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Pilot/DATA.xlsx",
+  sheet="annotation")
 
 
 

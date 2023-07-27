@@ -54,4 +54,52 @@ cat_summ(edu_level)
 
 
 
-### REPRODUCTIVE
+### REPRODUCTIVE AND HEALTH
+
+# BMI
+num_summ(bmi)
+cat_summ(bmi_cat)
+
+# family history
+cat_summ(fam_hist_breast)
+
+# menopause status
+cat_summ(menopause_stt)
+
+# age at menarche
+num_summ(wh_menstruation_age)
+
+# gravidity
+num_summ(wh_gravidity)
+
+# live births
+num_summ(wh_live_births)
+
+# contraceptive use
+cat_summ(wh_contraceptives_ever)
+
+# use of hrt
+cat_summ(wh_hrt_ever)
+
+
+
+### LIFESTYLE BEHAVIORS
+
+# alcohol
+cat_summ(alc_ever)
+
+cat_summ(alc_cur_freq)
+cat_summ(alc_cur_freq_cat)
+
+num_summ(alc_drink_per_week)
+
+cat_summ(alc_binge_cat)
+
+
+# smoking
+cat_summ(smk_cig_status)
+
+# nutrition
+num_summ(nut_veg_qty)
+
+num_summ(nut_fruits_qty)
