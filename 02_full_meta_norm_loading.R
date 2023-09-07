@@ -11,8 +11,8 @@ library(readxl)
 
 
 
-# load metabolite data
-full_ion_norm_raw_raw <- read_excel(
+# load normalized metabolite data
+full_ion_norm_raw <- read_excel(
   path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Metabolomics/Full/spreadsheets/DATA_NORM.xlsx",
   sheet="ion_matrix",
   .name_repair="universal")
@@ -26,9 +26,30 @@ full_inj_norm %>% head()
 
 
 
+# load crosswalk data
+atp_id_cw <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/atp_id_crosswalk.csv",
+                      col_types=cols(participantkey=col_character(), barcode=col_character()))
+
+
 
 # load full questionnaire data
-full_dat <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
+full_dat <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
+full_dat <- full_dat %>%
+  mutate(across(c(gp, cohort, baseline_info_avail,
+                  menopause_stt,
+                  ethnicity,
+                  edu_level, sdc_edu_level,
+                  sdc_income, income_level,
+                  wh_contraceptives_ever,
+                  wh_hft_ever, wh_hrt_ever,
+                  fam_hist_breast,
+                  alc_ever, alc_cur_freq, alc_cur_freq_cat,
+                  alc_binge_freq_female, alc_binge_cat,
+                  smk_cig_status,bmi_cat,
+                  er_status, pr_status, her2_status, hr_subtype,
+                  hist_subtype),
+                as_factor))
+
 
 
 
@@ -119,8 +140,16 @@ full_3 %>% count(dup, cohort)
 
 #=====================================================#
 
-full_ion_norm <- full_2 %>%
-  select(studyid, tubeid, iter, plate, cohort, sampletype, dup, contains("ion"))
-
+full_ion_norm <- full_3 %>%
+  select(studyid, tubeid, iter, dup, sampletype, cohort, plate, contains("ion"))
 
 full_ion_norm[1:10, 1:10]
+
+
+write_csv(
+  full_ion_norm,
+  "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/meta_normalized.csv"
+  )
+
+
+

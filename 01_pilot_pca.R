@@ -15,7 +15,7 @@ get_eig(meta_pca)
 # meta_pca_summary <- summary(meta_pca)
 # ggplot() +
 #   geom_point(aes(1:46, meta_pca_summary$importance[3,]), color="blue") +
-#   geom_line(aes(1:46, meta_pca_summary$importance[3,]), color="blue") +
+#   geom_line(aes(1:46, meta_pca_summary$importance[3,r]), color="blue") +
 #   geom_point(aes(1:46, meta_pca_summary$importance[2,]), color="red") +
 #   geom_line(aes(1:46, meta_pca_summary$importance[2,]), color="red") +
 #   labs(x="principal component",

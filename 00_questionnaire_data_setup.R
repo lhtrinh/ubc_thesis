@@ -4,6 +4,7 @@ library(readxl)
 library(lubridate)
 library(psych)
 library(moments)
+library(readr)
 
 #######################################################
 
@@ -22,9 +23,7 @@ bc_match_ind <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP/BCGP264
 colnames(bc_match_ind) <- tolower(colnames(bc_match_ind))
 
 
-# remove one participant from BCGP (selected in error)
-bc_raw2 <- bc_raw %>%
-  filter(studyid!="PB000429")
+
 
 
 
@@ -45,7 +44,7 @@ bc_match_ind <- bc_match_ind[!duplicated(bc_match_ind),]
 
 
 # remove one set of duplicates in bc_raw and combine BCGP data
-bc_raw2 <- bc_raw2 %>% arrange(studyid)
+bc_raw2 <- bc_raw %>% arrange(studyid)
 dup_ind <- which(duplicated(bc_raw2$studyid))
 dup_ind
 
@@ -64,7 +63,8 @@ dim(bc_raw4)
 
 
 
-# remove pairs where at least one had no baseline questionnaire
+# if a participant has no baseline questionnaire info,
+# mark them and their matched pairs as "no baseline avail"
 bc_raw4 %>% count(is.na(adm_qx_completion)) #10 participants with no baseline qx
 
 no_baseline <- bc_raw4 %>%
@@ -73,7 +73,8 @@ no_baseline <- bc_raw4 %>%
 
 
 bc_raw5 <- bc_raw4 %>%
-  mutate(baseline_info_avail=ifelse(match_id %in% no_baseline$match_id, "NO", "YES"))
+  filter(!match_id %in% no_baseline$match_id)
+
 
 
 bc_dat <- bc_raw5
@@ -95,7 +96,7 @@ n_distinct(bc_dat$match_id)
 #====================#
 
 # load data sets
-atp_raw <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/vw2105_HFRQ_BL_CPAC.csv")
+atp_raw <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/vw2105_HFRQ_BL_CPAC.csv")
 colnames(atp_raw) <- tolower(colnames(atp_raw))
 atp_pm_measure <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/vw2105_PM_BL_CPAC.csv")
 colnames(atp_pm_measure) <- tolower(colnames(atp_pm_measure))
@@ -110,7 +111,7 @@ colnames(atp_cases) <- tolower(colnames(atp_cases))
 
 
 # match ID
-atp_matched_pairs <- read_xlsx(path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Metabolomics/Full/spreadsheets/2105_Study2105_03_29_2023_CaseControl_ParticipantKeyMatchedList.xlsx",
+atp_matched_pairs <- read_xlsx(path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/2105_Study2105_03_29_2023_CaseControl_ParticipantKeyMatchedList.xlsx",
                                sheet="Sheet1")
 
 
@@ -174,20 +175,8 @@ atp_raw2 <- atp_raw %>%
 
 
 
-
-
-#====================#
-# remove 2 participants that are no longer eligible
-# atp_dat %>%
-#   filter(!participantkey %in% c(210503833, 210524604))
-
-
-
-
-
-
 # change date form for questionnaire completion date
-atp_raw2$adm_qx_completion <- as.Date(atp_dat$adm_qx_completion)
+atp_raw2$adm_qx_completion <- as.Date(atp_raw2$adm_qx_completion)
 
 
 
@@ -219,6 +208,13 @@ atp_dat <- atp_raw2
 
 
 
+#====================#
+# remove 2 participants that are no longer eligible
+# participant 210503833 are not
+# atp_dat %>%
+#   filter(!studyid %in% c("210503833", "210524604"))
+
+
 ###############################################################################
 
 
@@ -227,8 +223,6 @@ atp_dat <- atp_raw2
 
 dat_raw <- bc_dat %>%
   full_join(atp_dat)
-
-
 
 
 
@@ -278,7 +272,9 @@ temp1 %>% count(hr_subtype)
 ### Family history of breast cancer
 temp1 <- temp1 %>%
   mutate(
-    cancer_fam_breast = ifelse(dis_cancer_m_breast==1 | dis_cancer_sib_breast==1 | dis_cancer_child_breast==1, 1, 0)) %>%
+    cancer_fam_breast = ifelse(dis_cancer_m_breast==1 |
+                                 dis_cancer_sib_breast==1 |
+                                 dis_cancer_child_breast==1, 1, 0)) %>%
   mutate(
     fam_hist_breast = case_when(
       cancer_fam_breast==1 ~ 1,
@@ -294,7 +290,17 @@ temp1 %>% count(fam_hist_breast)
 
 
 
+
 ### alcohol consumption
+
+# if alc_ever=0, set alcohol frequency and binging frequency to 0
+temp1 <- temp1 %>%
+  mutate(alc_cur_freq = ifelse(alc_ever==0, 0, alc_cur_freq)) %>%
+  mutate(across(c(alc_binge_freq_female, ends_with("week")),
+                function(x) ifelse(alc_cur_freq==0, 0, x)))
+
+
+# create new categories for alcohol frequencies
 temp1 <- temp1 %>%
   mutate(alc_cur_freq_cat = case_when(
     alc_cur_freq == 0 ~ "never",
@@ -307,31 +313,23 @@ temp1 %>% count(alc_cur_freq_cat)
 
 summary(temp1$alc_cur_freq)
 
-# binge drinking
+
+
+
+
+# create new categories for binge drinking
 temp1 <- temp1 %>%
   mutate(alc_binge_cat = case_when(
     alc_binge_freq_female == 0 ~ "never",
     alc_binge_freq_female %in% c(1,2,3,4,5) ~ "1 or less a week",
     alc_binge_freq_female == 6 ~ "2-3 times a week",
-    alc_binge_freq_female == 7 ~ "4-5 times a week",
-    alc_binge_freq_female == 8 ~ "6-7 times a week",
+    alc_binge_freq_female %in% c(7,8) ~ "4 or more a week",
     TRUE ~ NA_character_
   ))
 
 
-# if alc_ever=0, set alcohol frequency and binging frequency to 0
-# temp1 <- temp1 %>%
-#   mutate(across(
-#     c(alc_cur_freq, alc_binge_freq_female, ends_with("week")),
-#     function(x) ifelse(alc_ever==0, 0, x)))
 
 
-temp1 <- temp1 %>%
-  mutate(alc_cur_freq = ifelse(alc_ever==0, 0, alc_cur_freq)) %>%
-  mutate(across(c(alc_binge_freq_female, ends_with("week")),
-                function(x) ifelse(alc_cur_freq==0, 0, x)))
-
-temp1 %>% count(alc_cur_freq, alc_binge_freq_female)
 
 # calculate number of drinks per week
 temp1 <- temp1 %>%
@@ -350,9 +348,9 @@ temp1 %>% count(ethnicity)
 # education levels
 temp1 <- temp1 %>%
   mutate(edu_level = case_when(
-    sdc_edu_level %in% 1:2 ~ "high_school_or_less",
-    sdc_edu_level %in% 3:5 ~ "trade_community_certificate",
-    sdc_edu_level %in% 6:7 ~ "uni_or_more",
+    sdc_edu_level %in% 1:2 ~ "1_high_school_or_less",
+    sdc_edu_level %in% 3:5 ~ "2_some_uni",
+    sdc_edu_level %in% 6:7 ~ "3_bachelor_or_more",
     TRUE ~ NA_character_
   ))
 temp1 %>% count(edu_level)
@@ -362,9 +360,9 @@ temp1 %>% count(sdc_edu_level)
 # income level
 temp1 <- temp1 %>%
   mutate(income_level = case_when(
-    sdc_income %in% 1:3 ~ "50k_or_less",
-    sdc_income %in% 4:5 ~ "50k_to_100k",
-    sdc_income %in% 6:8 ~ "100k_or_more",
+    sdc_income %in% 1:3 ~ "1_50k_or_less",
+    sdc_income %in% 4:5 ~ "2_50k_to_100k",
+    sdc_income %in% 6:8 ~ "3_100k_or_more",
     TRUE ~ NA_character_
   ))
 
@@ -452,7 +450,7 @@ temp1 %>% filter(cohort=="atp") %>% count(gp, acr_icd_o_morphology)
 #
 temp1 <- temp1 %>%
   mutate(
-    hist_subtype = ifelse(
+    hist_code = ifelse(
       !is.na(hist1), hist1,
       str_replace(
         str_sub(acr_icd_o_morphology, start=1L, end=6L),
@@ -461,15 +459,15 @@ temp1 <- temp1 %>%
     )
   )
 
-table(temp1$hist_subtype)
+table(temp1$hist_code)
 
 
 ## remove all in situ carcinomas (morphology ends with 2) and their controls
-temp1 %>% count(str_detect(hist_subtype, "2$")) #3 cases
-temp1 %>% filter(str_detect(hist_subtype, "2$")) %>% select(hist_subtype)
+temp1 %>% count(str_detect(hist_code, "2$")) #3 cases
+temp1 %>% filter(str_detect(hist_code, "2$")) %>% select(hist_code)
 
-pair_in_situ <- temp1$match_id[str_which(temp1$hist_subtype, "2$")]
-
+# pair_in_situ <- temp1$match_id[str_which(temp1$hist_code, "2$")]
+#
 # dim(temp1)
 # temp1 <- temp1 %>% filter(!match_id %in% pair_in_situ)
 # dim(temp1)
@@ -479,13 +477,25 @@ pair_in_situ <- temp1$match_id[str_which(temp1$hist_subtype, "2$")]
 temp1 <- temp1 %>%
   mutate(
     hist_subtype=case_when(
-      str_detect(hist_subtype, "^850") ~ "ductal",
-      str_detect(hist_subtype, "85203") ~ "lobular",
-      str_detect(hist_subtype, "8522|8523|8524|8255") ~ "mixed",
-      is.na(hist_subtype) ~ NA_character_,
+      str_detect(hist_code, "^850") ~ "ductal",
+      str_detect(hist_code, "85203") ~ "lobular",
+      str_detect(hist_code, "8522|8523|8524|8255") ~ "mixed",
+      is.na(hist_code) ~ NA_character_,
       TRUE ~ "other"
     )
   )
+
+
+
+
+
+#### Remove studyid 210503316 and matched pair
+#### there was a mismatch between study ID and registry information
+temp1 %>% filter(studyid=="210503316") %>% select(match_id)
+# temp2 <- temp1 %>% filter(match_id!=temp1$match_id[temp1$studyid=="210503316"])
+
+dim(temp1)
+
 
 
 temp1 %>% filter(gp=="CASE") %>% count(hist_subtype) %>% mutate(p=proportions(n))
@@ -493,20 +503,58 @@ temp1 %>% filter(gp=="CASE") %>% count(hist_subtype) %>% mutate(p=proportions(n)
 
 
 
+temp1 <- temp1 %>%
+  mutate(wh_contraceptives_duration_yr = wh_contraceptives_duration/12)
+
+
+
+
+
+
+
+###############################################################################
+
+# REMOVE INELIGIBLE PARTICIPANTS
+
+# Participant PB000429 was selected in error
+# 8 pairs had at least one participant with no baseline information
+# Pair of 210503833 and 210524604 bc one was selected as a control but is now a case
+# 3 pairs have cases with in-situ tumors instead of invasive
+# Pair of participant 210503316 because of mismatched information
+
+
+# find matching IDs of pairs to remove
+rm_pair <- temp1 %>%
+  filter(studyid %in% c("210503833", "210524604", "210503316") |
+           str_detect(hist_code, "2$")) %>%
+  select(match_id) %>%
+  inner_join(subset(temp1, select=c("match_id", "studyid", "hist_code")))
+
+rm_pair
+
+temp2 <- temp1 %>%
+  filter(studyid!="PB000429" &
+  !match_id %in% rm_pair$match_id)
+
+
+
+
+
 ###############################################
 
-full_dat <- temp1 %>%
-  select(gp, studyid, match_id, cohort, dup, baseline_info_avail,
+full_dat <- temp2 %>%
+  select(gp, studyid, match_id, cohort, dup,
          sdc_age_calc, #collect_year, followuptime,
          menopause_stt,
          ethnicity,
          edu_level, sdc_edu_level,
          sdc_income, income_level,
          wh_menstruation_age,
-         wh_contraceptives_ever, # wh_contraceptives_age, wh_contraceptives_duration,
-         wh_gravidity, wh_live_births, # wh_preg_first_age,
-         # wh_breastfeeding_duration,
-         wh_hft_ever, wh_hrt_ever, # wh_hrt_age, wh_hrt_duration,
+         wh_contraceptives_ever, wh_contraceptives_age, wh_contraceptives_duration_yr,
+         wh_gravidity, wh_live_births, wh_preg_first_age,
+         wh_breastfeeding_duration,
+         wh_hft_ever,
+         wh_hrt_ever, wh_hrt_age, wh_hrt_duration,
          fam_hist_breast,
          nut_veg_qty, nut_fruits_qty,
          alc_ever, alc_cur_freq, alc_cur_freq_cat,
@@ -516,23 +564,138 @@ full_dat <- temp1 %>%
          bmi, bmi_cat,
          age_at_diagnosis,
          er_status, pr_status, her2_status, hr_subtype,
-         site_code, hist_subtype)
+         site_code, hist_code, hist_subtype)
 
 
 full_dat <- full_dat %>%
-  mutate(across(c(gp, cohort, menopause_stt, dup,
-                  ethnicity, edu_level, sdc_edu_level,
+  mutate(across(c(gp, cohort,
+                  menopause_stt,
+                  ethnicity,
+                  edu_level, sdc_edu_level,
                   sdc_income, income_level,
-                  wh_contraceptives_ever, wh_hft_ever, wh_hrt_ever,
+                  wh_contraceptives_ever,
+                  wh_hft_ever, wh_hrt_ever,
                   fam_hist_breast,
                   alc_ever, alc_cur_freq, alc_cur_freq_cat,
                   alc_binge_freq_female, alc_binge_cat,
-                  smk_cig_status, bmi_cat
-  ),
+                  smk_cig_status,bmi_cat,
+                  er_status, pr_status, her2_status, hr_subtype,
+                  hist_subtype),
   as_factor))
 
 
+full_dat %>% count(gp)
+full_dat %>% count(cohort, gp)
 
 
-write.csv(full_dat, file="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
 
+write_csv(full_dat, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#======================================================================#
+# load crosswalk between participant and sample IDs for ATP
+atp_id_crosswalk <- read_xlsx(
+  path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Metabolomics/Full/Bhatti samples pulled and duplicate IDs 2023-06-02.xlsx",
+  sheet="231Cs, 231Cntr w duplc"
+)
+names(atp_id_crosswalk)
+
+
+# 1. fix column names and remove the last column (blank column with one note only)
+# 2. remove leading 00s from barcode columns
+# 3. combine original and duplicated barcodes into one single column named "sampleid"
+# 4. mark columns with replicate barcodes as dup
+
+
+# 1. rename column "tube barcode of duplicate sent" to dup_barcode
+# 2. change all column names to lowercase
+# 3. keep only columns participantkey, aliquotbarcode, and dup_barcode
+atp_id_cw2 <- atp_id_crosswalk %>%
+  rename(dup_barcode = `tube barcode of duplicate sent`) %>%
+  rename_with(tolower) %>%
+  select(participantkey, aliquotbarcode, dup_barcode)
+head(atp_id_cw2)
+
+# one participant has a matching aliquot, but it's not in the crosswalk
+# so we'll add crosswalk record to data set
+atp_id_cw3 <- rbind(atp_id_cw2,
+                    data.frame(participantkey="210509417",
+                               aliquotbarcode="0080196574",
+                               dup_barcode=NA_character_))
+
+# combine aliquot and duplicate barcodes into one column named "barcode"
+atp_id_cw4 <- atp_id_cw3 %>%
+  mutate(across(c(aliquotbarcode, dup_barcode),
+                function(x) as.character(as.numeric(x))),
+         dup=ifelse(!is.na(dup_barcode), "YES", "NO")) %>%
+  pivot_longer(-c(participantkey, dup),
+               values_to="barcode",
+               values_drop_na=TRUE)
+
+head(atp_id_cw4)
+summary(atp_id_cw4)
+
+
+# double check for duplicates
+atp_id_cw4 %>%
+  count(barcode) %>%
+  arrange(desc(n)) #2 duplicates
+
+atp_id_cw4 %>%
+  filter(barcode==170965728 | barcode==81869160) #same participant
+
+# there is one duplicate barcode that appeared twice
+# looks like the same ID throughout so we can remove the "double-duplicated" barcode
+atp_id_cw5 <- atp_id_cw4[!duplicated(atp_id_cw4),]
+
+# remove two participants with no record in questionnaire data
+atp_id_cw6 <- atp_id_cw5 %>%
+  filter(!participantkey %in% c("210540416", "210533315"))
+
+# final crosswalk table
+atp_id_cw <- atp_id_cw6 %>%
+  select(participantkey, dup, barcode)
+
+
+
+head(atp_id_cw)
+dim(atp_id_cw)
+
+#======================================================================#
+# ID cw
+bcgp_id_cw <- full_dat %>%
+  filter(cohort=="bcgp") %>%
+  select(studyid, dup) %>%
+  mutate(barcode=studyid) %>%
+  rename(participantkey=studyid)
+
+
+id_cw <- rbind(atp_id_cw, bcgp_id_cw) %>%
+  filter(!participantkey %in% rm_pair$studyid)
+head(id_cw)
+dim(id_cw)
+
+
+
+#======================================================================#
+write_csv(atp_id_cw,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/atp_id_crosswalk.csv")
+
+write_csv(id_cw,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/id_crosswalk_dup_info.csv")

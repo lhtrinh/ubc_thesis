@@ -7,9 +7,9 @@
 ### Load packages
 library(tidyverse)
 library(readxl)
+library(readr)
 
-# load full questionnaire data
-full_dat <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
+
 
 
 # load metabolite data
@@ -24,57 +24,37 @@ full_injection <- read_xlsx(
 full_injection %>% head()
 
 
+# load crosswalk data
+atp_id_cw <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/atp_id_crosswalk.csv",
+                      col_types=cols(participantkey=col_character(), barcode=col_character()))
+
+id_cw_dup <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/id_crosswalk_dup_info.csv",
+                      col_types = cols(participantkey=col_character(), barcode=col_character()))
 
 
 
 
-
-#======================================================================#
-# load crosswalk between participant and sample IDs for ATP
-atp_id_crosswalk <- read_xlsx(
-  path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Metabolomics/Full/Bhatti samples pulled and duplicate IDs 2023-06-02.xlsx",
-  sheet="231Cs, 231Cntr w duplc"
-)
-names(atp_id_crosswalk)
-
-
-# 1. fix column names and remove the last column (blank column with one note only)
-# 2. remove leading 00s from barcode columns
-# 3. combine original and duplicated barcodes into one single column named "sampleid"
-# 4. mark columns with replicate barcodes as dup
-atp_id_cw2 <- atp_id_crosswalk %>%
-  rename(dup_barcode = `tube barcode of duplicate sent`) %>%
-  rename_with(tolower) %>%
-  select(participantkey, aliquotbarcode, dup_barcode) %>%
-  mutate(across(c(aliquotbarcode, dup_barcode),
-                function(x) as.character(as.numeric(x))),
-         dup=ifelse(!is.na(dup_barcode), "YES", "NO")) %>%
-  pivot_longer(-c(participantkey, dup),
-               values_to="barcode",
-               values_drop_na=TRUE)
-
-head(atp_id_cw2)
-summary(atp_id_cw2)
-
-
-# double check for duplicates
-atp_id_cw2 %>%
-  count(barcode) %>%
-  arrange(desc(n)) #2 duplicates
-
-atp_id_cw2 %>%
-  filter(barcode==170965728 | barcode==81869160) #same participant
-
-# there is one duplicate barcode that appeared twice
-# looks like the same ID throughout
-# we can remove the "double-duplicated" barcode
-atp_id_cw3 <- atp_id_cw2[!duplicated(atp_id_cw2),]
+# # load full questionnaire data
+# full_dat <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
+# full_dat <- full_dat %>%
+#   mutate(across(c(gp, cohort,
+#                   menopause_stt,
+#                   ethnicity,
+#                   edu_level, sdc_edu_level,
+#                   sdc_income, income_level,
+#                   wh_contraceptives_ever,
+#                   wh_hft_ever, wh_hrt_ever,
+#                   fam_hist_breast,
+#                   alc_ever, alc_cur_freq, alc_cur_freq_cat,
+#                   alc_binge_freq_female, alc_binge_cat,
+#                   smk_cig_status,bmi_cat,
+#                   er_status, pr_status, her2_status, hr_subtype,
+#                   hist_subtype),
+#                 as_factor))
 
 
 
-# final crosswalk IDs
-atp_id_cw <- atp_id_cw3
-head(atp_id_cw)
+
 
 
 #======================================================================#
@@ -92,6 +72,9 @@ full_ion_t <- full_ion_intensities %>%
 
 
 
+
+
+#======================================================================#
 # separate sample IDs and cohort
 # also change all ATP sample IDs to corresponding studyid
 ### 1.  If the cohort is ATP, remove the string "ATP_" in the front
@@ -119,9 +102,10 @@ full_inj2 <- full_injection %>%
 
 
 # join injection data with crosswalk
-# if sample is in the ATP cohort, replace sampleid with participantkey
+## if sample is in the ATP cohort, then
+## replace sampleid with participantkey from the crosswalk data set
 full_inj3 <- full_inj2 %>%
-  left_join(atp_id_cw,
+  left_join(id_cw_dup,
             by=join_by(sampleid==barcode),
             keep=TRUE) %>%
   mutate(studyid=case_when(
@@ -129,22 +113,20 @@ full_inj3 <- full_inj2 %>%
     cohort=="ATP" ~ participantkey,
     TRUE ~ sampleid
   ))
+dim(full_inj3)
 
 
-# add duplicate info from BCGP
-# We also label QC samples as "dup" since we are using them for QC
 
-dup_id_bcgp <- unique(full_dat$studyid[full_dat$dup=="YES"])
-dup_id_bcgp <- dup_id_bcgp[!is.na(dup_id_bcgp)]
-dup_id_bcgp
-
+# also label QC samples as "dup" since we are using them for ICC and CV
 full_inj4 <- full_inj3 %>%
-  mutate(dup=ifelse(studyid %in% dup_id_bcgp |
-                      sampletype=="QC", "YES", dup))
+  mutate(dup=ifelse(sampletype=="QC", "YES", dup))
+
+full_inj4 %>% filter(dup=="YES") %>%
+  count(studyid, cohort) %>%
+  count(cohort)
 
 
 
-full_inj4 %>% filter(dup=="YES") %>% count(studyid, cohort) %>% count(n)
 
 
 full_inj <- full_inj4
@@ -152,15 +134,23 @@ full_inj <- full_inj4
 
 
 #################################################################
-full_ion_plate <- full_ion_t %>%
+# join injection and ion intensities
+# also remove any samples that are not in the questionnaire data
+full_ion <- full_ion_t %>%
   full_join(full_inj,
             by=c("sampleid"="dsIdx")) %>%
-  select(studyid, tubeid, iter, dup, sampletype, plate, contains("ion"))
+  select(studyid, tubeid, iter, dup, sampletype, cohort, plate, contains("ion")) %>%
+  filter(sampletype=="QC" |
+           sampletype=="Sample" & studyid %in% id_cw_dup$participantkey)
 
-# number of study samples
-length(unique(full_ion_plate$studyid[full_ion_plate$sampletype=="Sample"]))
+# double check number of study samples
+n_distinct(full_ion$studyid[full_ion$sampletype=="Sample"])
 
 
 
-write.csv(full_ion_plate, file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/meta_non_normalized.csv")
+
+
+
+write_csv(
+  full_ion, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/meta_non_normalized.csv")
 

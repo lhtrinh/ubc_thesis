@@ -25,8 +25,8 @@ calc_cv <- function(dat, group_var){
   # calculate CV per metabolite per participant
   replicate_cv <- dat %>%
     group_by(!!group_var) %>%
-    summarise(across(contains("ion"),
-                     function(x) sd(x)/mean(x)*100)) %>%
+    summarise(across(starts_with("ion"),
+                     function(x) sd(x)/mean(x))) %>%
     ungroup()
 
   return(replicate_cv)
@@ -47,7 +47,7 @@ calc_cv_med <- function(dat, group_var){
 
 
   replicate_cv_med <- cv_dat %>%
-    summarise(across(contains("ion"), median)) %>%
+    summarise(across(starts_with("ion"), function(x) median(x, na.rm=TRUE))) %>%
     t()
 
   # record the CV into a dataset
@@ -69,8 +69,7 @@ calc_cv_med <- function(dat, group_var){
 
 
 
-# Use ICC function from psych package
-# Calculate ICC3 to measure test-retest reliability
+# Use icc function from "performance" package to identify ICC (unadjusted)
 
 calc_icc <- function(dat, group_var){
   ion_cols <- names(dat)[str_detect(names(dat), "ion")]
@@ -92,3 +91,44 @@ calc_icc <- function(dat, group_var){
   }
   icc_dat
 }
+
+
+
+
+
+
+#=====================#
+##################
+# TEST FOR NORMALITY OF METABOLITE LEVELS
+##################
+
+
+
+# test for normality
+normality_skewness <- function(df) {
+  norm_df <- data.frame(metabolite=rep(0, ncol(df)),
+                        shapiro_pval=rep(0,ncol(df)),
+                        jarque_pval=rep(0,ncol(df)),
+                        ks_pval=rep(0, ncol(df)),
+                        skew=rep(0, ncol(df)))
+  ion_df <- df %>% select(starts_with("ion"))
+  for (i in 1:ncol(ion_df)){
+    x <- ion_df[,i] %>% as_vector()
+
+    # for all three normality tests, p>.05 indicates normality
+    norm_df[i,1] <- colnames(ion_df)[i]
+    norm_df[i,2] <- shapiro.test(x)$p.value
+    norm_df[i,3] <- jarque.test(x)$p.value
+    norm_df[i,4] <- ks.test(x, "pnorm")$p.value
+    norm_df[i,5] <- 3*(mean(x) - median(x))/sd(x)
+  }
+  norm_df
+}
+
+
+
+
+#=====================#
+##################
+# WILCOXON RANK-SUM TEST (MANN-WHITNEY U TEST) FOR METABOLITES
+##################
