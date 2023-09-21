@@ -56,7 +56,7 @@ for (i in seq(.5,1,.1)){
 
 
 
-thres <- .8
+thres <- .5
 full_ion_trunc <- full_ion_nonorm %>%
   select(-all_of(ion_freq2$ion[ion_freq2$ionGapHits<2550*thres]))
 
@@ -83,13 +83,10 @@ dim(full_ion_trunc)
 
 #===============================================#
 
-full_nonorm_studyid <- full_ion_trunc %>%
+full_nonorm_dup <- full_ion_trunc %>%
   group_by(studyid, tubeid, sampletype, cohort, plate, dup) %>%
   summarise(across(starts_with("ion"), mean)) %>%
-  ungroup()
-
-
-full_nonorm_dup <- full_nonorm_studyid %>%
+  ungroup() %>%
   filter(dup=="YES")
 
 cv_nonorm_1 <- calc_cv_med(full_nonorm_dup, studyid)
@@ -130,59 +127,60 @@ qc_nonorm_1 %>%
 ions_to_rm_nonorm <- qc_nonorm_1$metabolite[qc_nonorm_1$median_cv>.2 | qc_nonorm_1$icc<.4]
 
 
-# remove the metabolites and
-# take the average metabolite levels for all duplicates
+# take avg metabolite levels for all duplicates
+# !!! NO PLATE INFO - some samples were in two different plates
 full_nonorm_avg <- full_ion_trunc %>%
   filter(sampletype=="Sample") %>%
-  group_by(studyid, tubeid, sampletype, cohort, plate, dup) %>%
+  group_by(studyid, sampletype, cohort, dup) %>%
   summarise(across(starts_with("ion"), mean)) %>%
   ungroup()
 
+# remove the metabolites with high CV or low iCC
 full_nonorm_avg_qc <- full_nonorm_avg %>%
   select(-all_of(ions_to_rm_nonorm))
 
 
-write_csv(full_ion_avg_qc,
-          "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/meta_non_normalized_after_qc.csv")
+# write_csv(full_ion_avg_qc,
+#           "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/meta_non_normalized_after_qc.csv")
 
 
 
 
-
-
-
-###############################################################
-###  PREPROCESSING METABOLOMICS DATA
-###  NON-NORMALIZED DATA
-###############################################################
-
-## Test for normality before and after log-transformation
-
-normality_nonorm_pre <- normality_skewness(full_nonorm_avg)
-# how many metabolites have p>0.05 for each test (indicating possible normality)
-normality_nonorm_pre %>% count(ks_pval>.05)
-normality_nonorm_pre %>% count(shapiro_pval>.05)
-normality_nonorm_pre %>% count(jarque_pval>.05)
-summary(normality_nonorm_pre$skew)
-
-# none normal
-
-
-full_nonorm_log <- full_nonorm_avg %>%
-  mutate(across(starts_with("ion"), log))
-
-full_nonorm_log2 <- full_nonorm_avg %>%
-  mutate(across(starts_with("ion"), log2))
-
-normality_nonorm_post <- normality_skewness(full_nonorm_log)
-# how many metabolites have p>0.05 for each test (indicating possible)
-normality_nonorm_post %>% count(ks_pval>.05)
-normality_nonorm_post %>% count(shapiro_pval>.05)
-normality_nonorm_post %>% count(jarque_pval>.05)
-summary(normality_nonorm_post$skew)
-
-# log-transforming data only increased normality in about 21-27 metabolites
-# we will keep the data not log-transformed, only scaled and mean-centered
+#
+#
+#
+# ###############################################################
+# ###  PREPROCESSING METABOLOMICS DATA
+# ###  NON-NORMALIZED DATA
+# ###############################################################
+#
+# ## Test for normality before and after log-transformation
+#
+# normality_nonorm_pre <- normality_skewness(full_nonorm_avg)
+# # how many metabolites have p>0.05 for each test (indicating possible normality)
+# normality_nonorm_pre %>% count(ks_pval>.05)
+# normality_nonorm_pre %>% count(shapiro_pval>.05)
+# normality_nonorm_pre %>% count(jarque_pval>.05)
+# summary(normality_nonorm_pre$skew)
+#
+# # none normal
+#
+#
+# full_nonorm_log <- full_nonorm_avg %>%
+#   mutate(across(starts_with("ion"), log))
+#
+# full_nonorm_log2 <- full_nonorm_avg %>%
+#   mutate(across(starts_with("ion"), log2))
+#
+# normality_nonorm_post <- normality_skewness(full_nonorm_log)
+# # how many metabolites have p>0.05 for each test (indicating possible)
+# normality_nonorm_post %>% count(ks_pval>.05)
+# normality_nonorm_post %>% count(shapiro_pval>.05)
+# normality_nonorm_post %>% count(jarque_pval>.05)
+# summary(normality_nonorm_post$skew)
+#
+# # log-transforming data only increased normality in about 21-27 metabolites
+# # we will keep the data not log-transformed, only scaled and mean-centered
 
 
 ###############################################################
