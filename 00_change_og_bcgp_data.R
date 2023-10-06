@@ -43,7 +43,6 @@ bc_cw %>% filter(is.na(study_id)) #one participant did not have a studyid
 # all good
 
 
-
 bc_proj <- bc_all %>%
   inner_join(bc_cw) %>%
   select(-study_id) %>%
@@ -51,19 +50,9 @@ bc_proj <- bc_all %>%
 
 
 
-add_cols <- setdiff(colnames(bc_raw_og), colnames(bc_proj))
 
-bc_raw_og2 <- bc_raw_og %>%
-  arrange(studyid) %>%
-  select(studyid, all_of(add_cols))
-
-bc_raw_og3 <- bc_raw_og2[!duplicated(bc_raw_og2$studyid),]
-
-bc_raw_og3 %>% filter(studyid=="PB000251")
-
-
-bc_raw <- bc_proj %>%
-  right_join(bc_raw_og3) %>%
+bc_raw <- bc_raw_og %>%
+  left_join(subset(bc_proj, select=c("studyid", "dis_cancer_child_breast", "dis_cancer_child_breast_num"))) %>%
   arrange(studyid)
 
 

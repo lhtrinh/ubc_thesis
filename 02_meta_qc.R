@@ -3,6 +3,8 @@
 ######################################################
 
 library(tidyverse)
+library(readxl)
+library(readr)
 
 # load script of pre-defined functions
 source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
@@ -54,7 +56,7 @@ for (i in seq(.5,1,.1)){
 
 
 
-
+# set cutoff threshold
 
 thres <- .5
 full_ion_trunc <- full_ion_nonorm %>%
@@ -82,11 +84,29 @@ dim(full_ion_trunc)
 
 
 #===============================================#
+# is data sorted by run order?
+identical(sort(full_ion_trunc$dsIdx), full_ion_trunc$dsIdx)
 
-full_nonorm_dup <- full_ion_trunc %>%
-  group_by(studyid, tubeid, sampletype, cohort, plate, dup) %>%
+# add variable for tubeid order
+full_ion_trunc$tubeid_lag <- lag(full_ion_trunc$tubeid)
+order <- c(1, rep(0,nrow(full_ion_trunc)-1))
+for (i in 2:nrow(full_ion_trunc)){
+  order[i] <- ifelse(full_ion_trunc$tubeid[i]==full_ion_trunc$tubeid_lag[i],
+                     order[i-1],
+                     order[i-1]+1)
+}
+full_ion_trunc$order <- order
+
+
+
+full_nonorm_sampleid <- full_ion_trunc %>%
+  group_by(studyid, tubeid, order, sampletype, cohort, plate, dup) %>%
   summarise(across(starts_with("ion"), mean)) %>%
   ungroup() %>%
+  arrange(order)
+
+
+full_nonorm_dup <- full_nonorm_sampleid %>%
   filter(dup=="YES")
 
 cv_nonorm_1 <- calc_cv_med(full_nonorm_dup, studyid)
@@ -135,9 +155,9 @@ full_nonorm_avg <- full_ion_trunc %>%
   summarise(across(starts_with("ion"), mean)) %>%
   ungroup()
 
-# remove the metabolites with high CV or low iCC
-full_nonorm_avg_qc <- full_nonorm_avg %>%
-  select(-all_of(ions_to_rm_nonorm))
+# # remove the metabolites with high CV or low iCC
+# full_nonorm_avg_qc <- full_nonorm_avg %>%
+#   select(-all_of(ions_to_rm_nonorm))
 
 
 # write_csv(full_ion_avg_qc,
@@ -186,7 +206,7 @@ full_nonorm_avg_qc <- full_nonorm_avg %>%
 ###############################################################
 
 # Pareto-scale ions
-full_nonorm_sc <- full_nonorm_avg_qc %>%
+full_nonorm_sc <- full_ion_norm %>%
   mutate(across(starts_with("ion"),
                 function(x) (x-mean(x))/sqrt(sd(x))))
 
@@ -194,7 +214,8 @@ full_nonorm_sc <- full_nonorm_avg_qc %>%
 
 # Within-pair mean centered
 full_nonorm_centered <- full_nonorm_sc %>%
-  inner_join(subset(full_dat, select=c("studyid", "match_id", "gp"))) %>%
+  mutate(cohort=tolower(cohort)) %>%
+  full_join(full_dat) %>%
   group_by(match_id) %>%
   mutate(across(starts_with("ion"),
                 function(x) x-mean(x))) %>%

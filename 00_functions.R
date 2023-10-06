@@ -24,6 +24,7 @@ calc_cv <- function(dat, group_var){
 
   # calculate CV per metabolite per participant
   replicate_cv <- dat %>%
+    filter(dup=="YES") %>%
     group_by(!!group_var) %>%
     summarise(across(starts_with("ion"),
                      function(x) sd(x)/mean(x))) %>%
@@ -68,25 +69,34 @@ calc_cv_med <- function(dat, group_var){
 ##################
 
 
-
-# Use icc function from "performance" package to identify ICC (unadjusted)
-
 calc_icc <- function(dat, group_var){
-  ion_cols <- names(dat)[str_detect(names(dat), "ion")]
+
+  # select data with duplicates
+  dat_dup <- dat %>% filter(dup=="YES")
+
+  # define list of ion names
+  ion_cols <- names(dat_dup)[str_detect(names(dat_dup), "ion")]
+
+  # create placeholder data frame to record ICC values
   icc_dat <- data.frame(
     metabolite = ion_cols,
     icc = 0)
 
+  # calculate ICC for each metabolite
   for (i in 1:length(ion_cols)){
     ion_col <- ion_cols[i]
     ion_col <- enquo(ion_col)
     group_var <- enquo(group_var)
 
-    ion_dat <- dat %>% select(!!group_var, !!ion_col)
+    ion_dat <- dat_dup %>%
+      select(!!group_var, !!ion_col)
     colnames(ion_dat) <- c("id", "y")
     my_mod <- lme4::lmer(y ~ 1 + (1|id), data=ion_dat)
-    my_icc <- performance::icc(my_mod)$ICC_unadjusted
+    my_summ <- summary(my_mod)
 
+    my_icc <- my_summ$varcor$id[1] / (my_summ$varcor$id[1] + my_summ$sigma^2)
+
+    # icc_dat[i,1] <- ion_col
     icc_dat[i,2] <- my_icc
   }
   icc_dat
@@ -130,5 +140,50 @@ normality_skewness <- function(df) {
 
 #=====================#
 ##################
-# WILCOXON RANK-SUM TEST (MANN-WHITNEY U TEST) FOR METABOLITES
+# QC FOR NORMALIZATION
 ##################
+
+
+# norm_qc function:
+# - calculates median CV and ICC and saves in a data set
+# - does PCA and saves biplot by cohort and study plate and saves image
+norm_qc <- function(df){
+  df_dup <- df %>%
+    filter(dup=="YES")
+
+  cv_norm <- calc_cv_med(df_dup, studyid)
+  icc_norm <- calc_icc(df_dup, studyid)
+
+  # save median CV and ICC for each metabolite and add tertile info
+  qc_norm <- cv_norm %>%
+    full_join(icc_norm)
+
+  # PCA
+  df_for_pca <- df %>%
+    filter(sampletype=="Sample") %>%
+    mutate(plate11_yn=ifelse(plate==11, "Plate 11", "Other plates"))
+
+  ion_df_pca <- df_for_pca %>% select(starts_with("ion"))
+  pca_mod <- prcomp(ion_df_pca)
+
+  fig_cohort <- fviz_pca_ind(pca_mod,
+                             label="none",
+                             alpha=.5,
+                             habillage = df_for_pca$cohort,
+                             palette=c("blue", "red"),
+                             addEllipses = TRUE)
+
+  fig_plate <- fviz_pca_ind(pca_mod,
+                            label="none",
+                            habillage =  df_for_pca$plate,
+                            alpha=.5,
+                            addEllipses = TRUE)
+
+  # save PCA biplots
+  figs <- grid.arrange(fig_cohort, fig_plate, nrow=1)
+  ggsave(filename=paste("pca_", deparse(substitute(df)), ".jpg", sep=""), plot=figs)
+
+  return(qc_norm)
+}
+
+

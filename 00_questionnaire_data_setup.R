@@ -15,7 +15,7 @@ library(readr)
 #====================#
 
 # load data sets
-bc_raw <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP/bcgp_data.csv")
+bc_raw <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP/BCGP_data.csv")
 colnames(bc_raw) <- tolower(colnames(bc_raw))
 bc_hormones <- read_sav("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP/BCGP2641_Y2022_BCCR_incidence_breast_hormones.sav")
 colnames(bc_hormones) <- tolower(colnames(bc_hormones))
@@ -274,6 +274,9 @@ dat_raw[dat_raw==-7] <- NA
 
 
 
+
+
+
 ### BMI and BMI categories
 temp1 <- dat_raw %>%
   mutate(bmi=as.numeric(coalesce(pm_tanitabmi, pm_bioimped_bmi, pm_bmi_sr))) %>%
@@ -281,6 +284,17 @@ temp1 <- dat_raw %>%
                         labels=c("underweight", "normal", "overweight", "obese")))
 temp1 %>% count(bmi_cat)
 summary(temp1$bmi)
+
+
+### Categorize collect_year
+temp1 <- temp1 %>%
+  mutate(collect_yr_cat = case_when(
+    collect_year %in% c(2009,2010) ~ "yr_09_10",
+    collect_year %in% c(2011, 2012) ~ "yr_11_12",
+    collect_year %in% c(2013, 2014) ~ "yr_13_14",
+    collect_year %in% c(2015, 2016) ~ "yr_15_16",
+    TRUE ~ NA_character_
+  ))
 
 
 
@@ -323,7 +337,7 @@ temp1 <- temp1 %>%
       fam_hist_breast==0 ~ 0,
       fam_hist_breast==1 ~ rowSums(across(c(dis_cancer_m_breast, dis_cancer_sib_breast_num, dis_cancer_child_breast_num)), na.rm=TRUE),
       TRUE ~ NA_integer_
-  )) %>%
+    )) %>%
   mutate(fam_hist_breast_cat=case_when(
     fam_hist_breast_num==0 ~ "0",
     fam_hist_breast_num==1 ~ "1",
@@ -352,13 +366,13 @@ temp1 <- temp1 %>%
 # create new categories for alcohol frequencies
 temp1 <- temp1 %>%
   mutate(alc_cur_freq_cat = case_when(
-    alc_cur_freq == 0 ~ "0_never",
-    alc_cur_freq %in% c(1,2,3,4) ~ "1_per_week_or_less",
-    alc_cur_freq == 5 ~ "2_3_per_week",
-    alc_cur_freq %in% c(6,7) ~ "4_per_week_or_more",
+    alc_cur_freq == 0 ~ "cat0_never",
+    between(alc_cur_freq, 1, 3) ~ "cat1_1_3_per_month",
+    between(alc_cur_freq, 4, 5) ~ "cat2_1_3_per_week",
+    between(alc_cur_freq, 6, 7) ~ "cat3_4_per_week_or_more",
     TRUE ~ NA_character_
   ))
-temp1 %>% count(alc_cur_freq_cat)
+temp1 %>% count(gp, alc_cur_freq_cat) %>% arrange(alc_cur_freq_cat, gp) %>% mutate(p=n/sum(n))
 
 
 
@@ -368,16 +382,13 @@ temp1 %>% count(alc_cur_freq_cat)
 # create new categories for binge drinking
 temp1 <- temp1 %>%
   mutate(alc_binge_cat = case_when(
-    alc_binge_freq_female == 0 ~ "0_never",
-    alc_binge_freq_female %in% c(1,2,3,4,5) ~ "1_per_week_or_less",
-    alc_binge_freq_female == 6 ~ "2_3_per_week",
-    alc_binge_freq_female %in% c(7,8) ~ "4_per_week_or_more",
+    alc_binge_freq_female == 0 | alc_ever==0 ~ "cat0_never",
+    between(alc_binge_freq_female, 1, 2) ~ "cat1_1_11_per_year",
+    between(alc_binge_freq_female, 3, 4) ~ "cat2_1_3_per_month",
+    between(alc_binge_freq_female, 5, 6) ~ "cat3_1_3_per_week",
+    between(alc_binge_freq_female, 7, 8) ~ "cat4_4_7_per_week",
     TRUE ~ NA_character_
   ))
-
-temp1 %>% count(alc_binge_cat)
-
-
 
 
 
@@ -422,7 +433,6 @@ temp1 %>% count(income_level)
 
 
 
-### NEED LITERATURE ###
 ## smoking
 # temp1 <- temp1 %>%
 #   mutate(
@@ -435,6 +445,14 @@ temp1 %>% count(income_level)
 #       smk_cig_former_daily_qty,
 #       smk_cig_heaviest_qty
 #     ))
+
+temp1 <- temp1 %>%
+  mutate(smk_cig_stt = case_when(
+    smk_cig_status == 0 ~ "0_never",
+    smk_cig_status == 1 ~ "1_past",
+    smk_cig_status %in% c(2,3) ~ "2_current",
+    TRUE ~ NA_character_
+  ))
 
 
 # age at smoking initiation
@@ -471,6 +489,48 @@ temp1 <- temp1 %>%
   mutate(wh_live_births = ifelse(wh_gravidity==0, 0, wh_live_births))
 
 
+# make categories for breastfeeding
+## summarize breastfeeding by number of live births
+with(temp1, by(wh_breastfeeding_duration, wh_live_births, summary))
+
+
+# calculate breastfeeding duration per live birth
+temp1 <- temp1 %>%
+  mutate(wh_breastfeeding_per_birth = ifelse(
+    wh_live_births==0, NA,
+    wh_breastfeeding_duration/wh_live_births)) %>%
+  mutate(wh_breastfeeding_cat = case_when(
+    wh_live_births==0 ~ "cat1_no_live_births",
+    between(wh_breastfeeding_per_birth, 0, 5) ~ "cat2_0_5_months",
+    between(wh_breastfeeding_per_birth, 6, 11) ~ "cat3_6_11_months",
+    wh_breastfeeding_per_birth > 12 ~ "cat4_12_months_or_more",
+    TRUE ~ NA_character_
+  ))
+temp1 %>% group_by(gp) %>%
+  count(wh_breastfeeding_cat) %>%
+  filter(!is.na(wh_breastfeeding_cat)) %>%
+  mutate(p=proportions(n))
+
+
+# categorize age at first pregnancy
+summary(temp1$wh_preg_first_age)
+
+temp1 <- temp1 %>%
+  mutate(wh_preg_first_age_cat = case_when(
+    wh_gravidity==0 ~ "cat1_no_preg",
+    wh_preg_first_age < 20 ~ "cat2_under_20",
+    between(wh_preg_first_age, 20, 24) ~ "cat3_20_24",
+    between(wh_preg_first_age, 25, 29) ~ "cat4_25_29",
+    wh_preg_first_age >= 30 ~ "cat5_over_30",
+    TRUE ~ NA_character_
+  ))
+temp1 %>% group_by(gp) %>% count(wh_preg_first_age_cat) %>%
+  filter(!is.na(wh_preg_first_age_cat)) %>%
+  mutate(p=proportions(n))
+
+
+
+
 # contraceptives
 temp1 %>% count(wh_contraceptives_ever)
 # summary(temp1$wh_contraceptives_duration)
@@ -491,15 +551,30 @@ temp1 <- temp1 %>%
 
 
 # set hrt duration if never used HRT
-temp1 %>% count(wh_hrt_ever)
+temp1 %>% count(gp, wh_hrt_ever)
 with(temp1, by(wh_hrt_age, wh_hrt_ever, summary))
+
 temp1 <- temp1 %>%
-  mutate(wh_hrt_duration=ifelse(wh_hrt_ever==0,0,wh_hrt_duration))
-with(temp1, by(wh_hrt_duration, wh_hrt_ever, summary))
-# need duration
+  mutate(wh_hrt_duration=ifelse(wh_hrt_ever==0,0, wh_hrt_duration)) %>%
+  mutate(wh_hrt_duration_yr=wh_hrt_duration/12)
+with(temp1, by(wh_hrt_duration, gp, summary))
 
 
 
+# categorize HRT duration
+temp1 <- temp1 %>%
+  mutate(wh_hrt_dur_cat=case_when(
+    wh_hrt_ever == 0 ~ "cat1_no_hrt",
+    wh_hrt_duration < 12 ~ "cat2_less_than_1_year",
+    between(wh_hrt_duration, 12, 59) ~ "cat3_1_5_years",
+    between(wh_hrt_duration, 60, 119) ~ "cat4_5_10_years",
+    wh_hrt_duration >= 120 ~ "cat5_10_years_or_more",
+    TRUE ~ NA_character_
+  ))
+temp1 %>% group_by(gp) %>%
+  count(wh_hrt_dur_cat) %>%
+  filter(!is.na(wh_hrt_dur_cat)) %>%
+  mutate(p=proportions(n))
 
 ####################
 ## Cancer descriptions
@@ -594,7 +669,7 @@ rm_pair
 
 temp2 <- temp1 %>%
   filter(studyid!="PB000429" &
-  !match_id %in% rm_pair$match_id)
+           !match_id %in% rm_pair$match_id)
 
 
 
@@ -603,22 +678,20 @@ dim(temp2)
 ###############################################
 
 full_dat <- temp2 %>%
-  select(gp, studyid, match_id, cohort, dup,
-         sdc_age_calc, #collect_year, followuptime,
+  select(gp, studyid, match_id, cohort,
+         sdc_age_calc, collect_yr_cat, collect_age,
          menopause_stt,
          ethnicity,
-         edu_level, sdc_edu_level,
-         sdc_income, income_level,
+         edu_level,
+         income_level,
          wh_menstruation_age, wh_menopause_age,
          wh_contraceptives_ever,
-         wh_gravidity, wh_live_births, wh_preg_first_age,
-         wh_breastfeeding_duration,
-         wh_hrt_ever, wh_hrt_duration,
-         fam_hist_breast, fam_hist_breast_cat,
-         nut_veg_qty, nut_fruits_qty,
-         alc_ever, alc_cur_freq_cat,
-         alc_binge_cat,
-         smk_cig_status, # need to find more smoking variables
+         wh_gravidity, wh_live_births, wh_preg_first_age_cat,
+         wh_breastfeeding_cat,
+         wh_hrt_ever, wh_hrt_duration_yr,
+         fam_hist_breast,
+         alc_ever, alc_cur_freq_cat, alc_binge_cat,
+         smk_cig_stt, # need to find more smoking variables
          bmi, bmi_cat,
          age_at_diagnosis,
          er_status, pr_status, her2_status, hr_subtype,
@@ -627,18 +700,21 @@ full_dat <- temp2 %>%
 
 full_dat <- full_dat %>%
   mutate(across(c(gp, cohort,
-                  menopause_stt,
+                  menopause_stt, collect_yr_cat,
                   ethnicity,
-                  edu_level, sdc_edu_level,
-                  sdc_income, income_level,
+                  edu_level,
+                  income_level,
                   wh_contraceptives_ever,
+                  wh_preg_first_age_cat,
+                  wh_breastfeeding_cat,
                   wh_hrt_ever,
-                  fam_hist_breast, fam_hist_breast_cat,
+                  fam_hist_breast,
                   alc_ever, alc_cur_freq_cat, alc_binge_cat,
-                  smk_cig_status,bmi_cat,
+                  smk_cig_stt,
+                  bmi_cat,
                   er_status, pr_status, her2_status, hr_subtype,
                   hist_subtype),
-  as_factor))
+                as_factor))
 
 
 full_dat %>% count(gp)

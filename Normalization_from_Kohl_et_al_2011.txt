@@ -1,0 +1,132 @@
+######Supplemental Material to 
+######State-of-the-art normalizations improve NMR-based metabolomics analysis
+######Stefanie M. Kohl, Matthias S. Klein, Peter J. Oefner, Rainer Spang, Wolfram Gronwald 
+
+
+######In the Following, the R code for the normalizations used in the paper is given.
+
+
+######The non-normalized data matrix of feature intensities is stored in a matrix called "data" 
+######Each row represents a feature, each column a sample
+
+
+
+
+
+#####---Probabilistic Quotient Normalization-----##########################
+reference <- apply(data,1,median)
+quotient <- data/reference
+quotient.median <- apply(quotient,2,median)
+pqn.data <- t(t(data)/quotient.median)
+
+
+
+#####---Cyclic Loess Normalization-----####################################
+library(affy)									#load package unless it is already loaded
+loess.data <- normalize.loess(data, 
+					subset=1:nrow(data), 
+					epsilon=10^-2, 
+					maxit=2, 
+					log.it=FALSE, 
+					verbose=TRUE, 
+					span=0.75, 
+					family.loess="gaussian")
+
+
+
+#####---Contrast Normalization-----########################################
+library(affy)									#load package unless it is already loaded
+
+#---First adaption: Make the data matrix non-negative
+smallvalue <- function(x, threshold=1e-11){				#threshold was chosen such that it is sufficiently smaller than the data
+	for(i in 1:length(x)){
+		if(!x[i]>0)	x[i] <- threshold
+	}
+}
+
+nonnegative.data=smallvalue(data)
+
+#---Apply normalization
+maffy.data <- maffy.normalize(nonnegative.data,
+					subset=1:nrow(nonnegative.data),
+					span=0.75,
+					verbose=TRUE,
+					family="gaussian",
+					log.it=FALSE)
+
+#---Second adaption: Subtract 10% Quantile from each sample
+subtract <- function(x){
+	t(t(x)-apply(x,2,quantile,0.1))
+}
+
+contrast.data <- subtract(maffy.data)
+
+
+
+#####---Quantile Normalization-----########################################
+library(affy)									#load package unless it is already loaded
+normalize.quantile <- get("normalize.quantiles",
+					en=asNamespace("affy"))
+quantile.data <- normalize.quantile(data)
+
+
+
+#####---Linear Baseline Normalization-----#################################
+linear.baseline <- apply(data,1,median)
+baseline.mean <- mean(linear.baseline)
+sample.means <- apply(data,2,mean)
+linear.scaling <- baseline.mean/sample.means
+linear.baseline.data <- t(t(data)*linear.scaling)
+
+
+
+#####---Li-Wong Normalization-----#########################################
+library(affy)									#load package unless it is already loaded
+
+#---First step: Find baseline sample
+average.intensity <- apply(data,2,mean)
+median.number <- round(ncol(data)/2 + 0.1)				#R has an add way of rounding. 
+											#the additional 0.1 ensures that it rounds properly
+ordering <- order(average.intensity)
+median.sample.number <- ordering[median.number]
+median.sample <- data[,median.sample.number]
+
+#---Apply normalization
+liwong.data=vector()
+for(i in 1:ncol(data)){
+	liwong.model <- normalize.invariantset(data=data[,i],
+					ref=median.sample,
+					prd.td=c(0.003,0.007))			#the threshold of the rank-invariant set might need to be adjusted from case to case
+	liwong.sample <- predict(liwong.model$n.curve$fit,		#chosen such that the rank-invariant set it sufficiently large
+					data[,i])
+	liwong.data <- cbind(liwong.data,liwong.sample$y)
+}
+
+
+
+#####---Cubic Spline Normalization-----####################################
+library(affy)									#load package unless it is already loaded
+spline.data <- normalize.qspline(data,
+					samples=0.02,
+					target=apply(data,1,mean))
+
+
+
+#####---Auto Scaling-----##################################################
+centered.data <- data - apply(data,1,mean)
+scaling.auto <- apply(data,1,sd)
+auto.data <- centered.data/scaling.auto
+
+
+
+#####---Pareto Scaling-----################################################
+centered.data <- data - apply(data,1,mean)
+scaling.pareto <- sqrt(apply(data,1,sd))
+pareto.data <- centered.data/scaling.pareto
+
+
+
+#####---Variance Stabilization Normalization (VSN)-----####################
+library(vsn)									#load package unless it is already loaded
+vsn.model <- vsn2(data)
+vsn.data <- predict(vsn.model,data)

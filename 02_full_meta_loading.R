@@ -36,21 +36,7 @@ id_cw_dup <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/id_crosswalk_du
 
 # # load full questionnaire data
 # full_dat <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
-# full_dat <- full_dat %>%
-#   mutate(across(c(gp, cohort,
-#                   menopause_stt,
-#                   ethnicity,
-#                   edu_level, sdc_edu_level,
-#                   sdc_income, income_level,
-#                   wh_contraceptives_ever,
-#                   wh_hft_ever, wh_hrt_ever,
-#                   fam_hist_breast,
-#                   alc_ever, alc_cur_freq, alc_cur_freq_cat,
-#                   alc_binge_freq_female, alc_binge_cat,
-#                   smk_cig_status,bmi_cat,
-#                   er_status, pr_status, her2_status, hr_subtype,
-#                   hist_subtype),
-#                 as_factor))
+
 
 
 
@@ -138,8 +124,9 @@ full_inj <- full_inj4
 # also remove any samples that are not in the questionnaire data
 full_ion <- full_ion_t %>%
   full_join(full_inj,
-            by=c("sampleid"="dsIdx")) %>%
-  select(studyid, tubeid, iter, dup, sampletype, cohort, plate, contains("ion")) %>%
+            by=c("sampleid"="dsIdx"),
+            keep=TRUE) %>%
+  select(dsIdx, dsCode, studyid, tubeid, iter, dup, sampletype, cohort, plate, contains("ion")) %>%
   filter(sampletype=="QC" |
            sampletype=="Sample" & studyid %in% id_cw_dup$participantkey)
 
@@ -149,8 +136,8 @@ n_distinct(full_ion$studyid[full_ion$sampletype=="Sample"])
 
 
 
-
-
+#################################################################
+# save data to local folder
 write_csv(
   full_ion, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/meta_non_normalized.csv")
 

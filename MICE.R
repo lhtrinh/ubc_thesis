@@ -1,47 +1,44 @@
 #======================================================#
-# try mice with atp data
 library(mice)
 
 
-dat_pre_impute <- full_dat %>%
+dat_pre_impute <- full_final %>%
   select(
-    studyid, # match_id,
-    gp,
-    sdc_age_calc,
-    ethnicity,
-    edu_level, income_level,
-    bmi,
+    gp, cohort, studyid, match_id, #dup,
+    sdc_age_calc, collect_year, collect_age,
     menopause_stt,
-    wh_menstruation_age,
-    starts_with("wh_contraceptives"),
-    wh_gravidity, wh_preg_first_age, wh_live_births,
-    wh_hrt_ever, # wh_hrt_age,
-    fam_hist_breast,
-    bmi, bmi_cat,
-    alc_cur_freq_cat, alc_binge_cat,
-    smk_cig_status, # smk_cig_dur, smk_cig_qty,
-    nut_fruits_qty, nut_veg_qty,
-    starts_with("ion")
+    ethnicity,
+    edu_level,
+    income_level,
+    wh_menstruation_age, wh_menopause_age,
+    wh_contraceptives_ever,
+    wh_gravidity, wh_live_births, wh_preg_first_age,
+    wh_breastfeeding_duration,
+    wh_hrt_ever, wh_hrt_duration_yr,
+    fam_hist_breast, fam_hist_breast_cat,
+    #nut_veg_qty, nut_fruits_qty,
+    alc_cur_freq_cat,
+    alc_binge_cat,
+    smk_cig_stt, # need to find more smoking variables
+    bmi, bmi_cat #,
+    #starts_with("ion")
   ) %>%
-  mutate(across(c(gp,
+  mutate(across(c(gp, cohort,
                   ethnicity,
-                  edu_level, income_level,
                   menopause_stt,
+                  edu_level, income_level,
                   wh_contraceptives_ever,
                   wh_hrt_ever,
                   fam_hist_breast,
                   bmi_cat,
                   alc_cur_freq_cat,
                   alc_binge_cat,
-                  smk_cig_status),
+                  smk_cig_stt),
                 as.factor)) %>%
   mutate(across(c(sdc_age_calc,
-                wh_menstruation_age,
-                wh_contraceptives_age,
-                wh_gravidity,
-                wh_preg_first_age,
-                nut_fruits_qty,
-                nut_veg_qty),
+                wh_menstruation_age, wh_menopause_age,
+                wh_gravidity, wh_live_births, wh_preg_first_age,
+                bmi),
                 as.numeric)) %>%
   ungroup()
 
@@ -59,8 +56,9 @@ dat_for_impute <- dat_pre_impute %>% select(-studyid)
 
 set.seed(292920)
 init <- mice(subset(dat_pre_impute, select=-studyid),
-             m=10,
-             maxit=10)
+             m=5,
+             maxit=10,
+             seed=292920)
 
 comp_impute <- complete(init)
 
