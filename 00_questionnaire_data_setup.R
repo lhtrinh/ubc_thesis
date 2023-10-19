@@ -433,46 +433,42 @@ temp1 %>% count(income_level)
 
 
 
-## smoking
-# temp1 <- temp1 %>%
-#   mutate(
-#     smk_cig_dur = as.numeric(coalesce(
-#       smk_cig_daily_cur_dur,
-#       smk_cig_former_daily_dur,
-#       smk_cig_heaviest_dur)),
-#     smk_cig_qty = coalesce(
-#       smk_cig_daily_avg_qty,
-#       smk_cig_former_daily_qty,
-#       smk_cig_heaviest_qty
-#     ))
+# smoking
 
+## add smoking duration
 temp1 <- temp1 %>%
-  mutate(smk_cig_stt = case_when(
-    smk_cig_status == 0 ~ "0_never",
-    smk_cig_status == 1 ~ "1_past",
-    smk_cig_status %in% c(2,3) ~ "2_current",
+  mutate(
+    smk_cig_dur = as.numeric(coalesce(
+        smk_cig_daily_cur_dur,
+        smk_cig_former_daily_dur,
+        smk_cig_heaviest_dur))) %>%
+  mutate(smk_cig_dur = ifelse(smk_cig_status==0, 0, smk_cig_dur)) %>%
+  mutate(smk_cig_dur_cat = case_when(
+    smk_cig_status==0 ~ "cat0_never_smk",
+    smk_cig_dur < 10 ~ "cat1_less_than_10_years",
+    between(smk_cig_dur, 10, 19) ~ "cat2_10_19_years",
+    smk_cig_dur>=20 ~ "cat5_20_years_or_more",
     TRUE ~ NA_character_
   ))
 
 
 # age at smoking initiation
-# temp1 <- temp1 %>%
-#   mutate(smk_first_age = coalesce(smk_cig_whole_onset, smk_cig_daily_cur_onset, smk_cig_former_daily_onset)) %>%
-#   mutate(smk_first_age_cat = case_when(
-#     smk_cig_status==0 ~ "cat0_never",
-#     smk_first_age <= 15 ~ "cat1_15_or_younger",
-#     between(smk_first_age, 16, 20) ~ "cat2_16_to_20",
-#     between(smk_first_age, 21, 25) ~ "cat3_21_to_25",
-#     smk_first_age>=26 ~ "cat4_26_or_older",
-#     TRUE ~ NA_character_
-#   )
-#   )
-#
-#
+temp1 <- temp1 %>%
+  mutate(smk_first_age = coalesce(smk_cig_daily_cur_onset, smk_cig_former_daily_onset)) %>%
+  mutate(smk_first_age_cat = case_when(
+    smk_cig_status==0 ~ "cat0_never",
+    smk_first_age < 15 ~ "cat1_younger_than_15",
+    between(smk_first_age, 15, 19) ~ "cat2_15_to_19",
+    between(smk_first_age, 20, 24) ~ "cat3_20_to_24",
+    smk_first_age>=25 ~ "cat4_25_or_older",
+    TRUE ~ NA_character_
+  )
+  )
+
 # # age at smoking relative to menarche and pregnancy
 # temp1 <- temp1 %>%
 #   mutate(smk_before_first_preg = case_when(
-#     smk_cig_status==0 ~ "never_smk",
+#     smk_cig_status==0 ~ "cat0_never",
 #     wh_gravidity==0 ~ "never_preg",
 #     smk_first_age < wh_preg_first_age ~ "before",
 #     smk_first_age >= wh_preg_first_age ~ "after",
@@ -481,7 +477,16 @@ temp1 <- temp1 %>%
 
 
 
+
 ################
+
+# set menstruation categories
+temp1 <- temp1 %>%
+  mutate(wh_menstruation_age_cat=case_when(
+    wh_menstruation_age<=12 ~ "cat1_under_12",
+    between(wh_menstruation_age, 13, 14) ~ "cat2_13_14",
+    wh_menstruation_age>14 ~ "cat3_over_14"
+  ))
 
 # set live births to 0 if gravidity=0
 temp1 %>% count(wh_live_births)
@@ -557,7 +562,7 @@ with(temp1, by(wh_hrt_age, wh_hrt_ever, summary))
 temp1 <- temp1 %>%
   mutate(wh_hrt_duration=ifelse(wh_hrt_ever==0,0, wh_hrt_duration)) %>%
   mutate(wh_hrt_duration_yr=wh_hrt_duration/12)
-with(temp1, by(wh_hrt_duration, gp, summary))
+with(temp1, by(wh_hrt_duration, wh_hrt_ever, summary))
 
 
 
@@ -575,6 +580,20 @@ temp1 %>% group_by(gp) %>%
   count(wh_hrt_dur_cat) %>%
   filter(!is.na(wh_hrt_dur_cat)) %>%
   mutate(p=proportions(n))
+
+
+# categorize age at menopause
+temp1 <- temp1 %>%
+  mutate(wh_menopause_age_cat = case_when(
+    menopause_stt==0 ~ "cat0_pre",
+    wh_menopause_age<45 ~ "cat1_under_45",
+    between(wh_menopause_age, 45, 54) ~ "cat2_45_54",
+    wh_menopause_age >= 55 ~ "cat3_55_or_over",
+    TRUE ~ NA_character_
+  ))
+
+
+
 
 ####################
 ## Cancer descriptions
@@ -684,37 +703,21 @@ full_dat <- temp2 %>%
          ethnicity,
          edu_level,
          income_level,
-         wh_menstruation_age, wh_menopause_age,
+         wh_menstruation_age_cat, wh_menopause_age_cat,
          wh_contraceptives_ever,
          wh_gravidity, wh_live_births, wh_preg_first_age_cat,
          wh_breastfeeding_cat,
          wh_hrt_ever, wh_hrt_duration_yr,
          fam_hist_breast,
          alc_ever, alc_cur_freq_cat, alc_binge_cat,
-         smk_cig_stt, # need to find more smoking variables
+         smk_cig_status, smk_cig_dur, smk_first_age_cat,
+         pse_childhood_duration, pse_adult_home_duration, pse_adult_wrk_duration,
          bmi, bmi_cat,
          age_at_diagnosis,
          er_status, pr_status, her2_status, hr_subtype,
          site_code, hist_code, hist_subtype)
 
 
-full_dat <- full_dat %>%
-  mutate(across(c(gp, cohort,
-                  menopause_stt, collect_yr_cat,
-                  ethnicity,
-                  edu_level,
-                  income_level,
-                  wh_contraceptives_ever,
-                  wh_preg_first_age_cat,
-                  wh_breastfeeding_cat,
-                  wh_hrt_ever,
-                  fam_hist_breast,
-                  alc_ever, alc_cur_freq_cat, alc_binge_cat,
-                  smk_cig_stt,
-                  bmi_cat,
-                  er_status, pr_status, her2_status, hr_subtype,
-                  hist_subtype),
-                as_factor))
 
 
 full_dat %>% count(gp)

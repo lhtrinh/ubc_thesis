@@ -10,22 +10,32 @@ source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
 # load full questionnaire data
 full_dat <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
 
-
+cat_cols <- c("gp", "cohort",
+              "menopause_stt", "collect_yr_cat",
+              "ethnicity",
+              "edu_level",
+              "income_level",
+              "wh_menstruation_age_cat", "wh_menopause_age_cat",
+              "wh_contraceptives_ever",
+              "wh_breastfeeding_cat",
+              "wh_preg_first_age_cat",
+              "wh_hrt_ever",
+              "fam_hist_breast",
+              "alc_ever", "alc_cur_freq_cat", "alc_binge_cat",
+              "smk_cig_status", "smk_cig_dur", "smk_first_age_cat",
+              "pse_childhood_duration", "pse_adult_home_duration", "pse_adult_wrk_duration",
+              "bmi_cat",
+              "er_status", "pr_status", "her2_status", "hr_subtype",
+              "site_code", "hist_code", "hist_subtype")
 
 full_dat <- full_dat %>%
-  mutate(across(c(gp, cohort,
-                  menopause_stt,
-                  ethnicity,
-                  edu_level,
-                  income_level,
-                  wh_contraceptives_ever,
-                  wh_hrt_ever,
-                  fam_hist_breast, fam_hist_breast_cat,
-                  alc_ever, alc_cur_freq_cat, alc_binge_cat,
-                  smk_cig_stt,bmi_cat,
-                  er_status, pr_status, her2_status, hr_subtype,
-                  hist_subtype),
+  mutate(across(all_of(cat_cols),
                 as_factor))
+
+
+
+
+
 
 
 full_dat %>% count(gp)

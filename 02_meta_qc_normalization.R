@@ -5,7 +5,7 @@
 #===============================================#
 ## Summary ####
 #==============#
-## This codde details the following steps:
+## This code details the following steps:
 ### 1. Filter metabolites that were missing in more than 50% of the experimental samples
 ### 2. Calculate CV and ICC for non-normalized samples
 ### 3. PCA plots for non-normalized samples (by plate and cohort)
