@@ -6,9 +6,104 @@
 library(tidyverse)
 library(lme4)
 library(performance)
+library(readr)
 
 
 #=====================#
+
+
+y_col <- "gp"
+
+id_cols <- c("studyid", "match_id")
+
+match_cols <-  c("cohort", "collect_yr_cat", "collect_age", "menopause_stt")
+
+context_cols <- c("sdc_age_calc", "ethnicity",
+                  "edu_level", "income_level",
+                  "wh_menstruation_age_cat", "wh_menopause_age_cat",
+                  "wh_contraceptives_ever",
+                  "wh_gravidity", "wh_live_births", "wh_preg_first_age_cat",
+                  "wh_breastfeeding_cat",
+                  "wh_hrt_ever", "wh_hrt_duration_yr",
+                  "fam_hist_breast",
+                  "bmi", "bmi_cat",
+                  "alc_ever", "alc_cur_freq_cat", "alc_binge_cat",
+                  "smk_cig_status", "smk_cig_dur", "smk_first_age_cat",
+                  "pse_childhood_duration", "pse_adult_home_duration", "pse_adult_wrk_duration")
+
+imp_cols <- c(y_col, match_cols, context_cols)
+
+
+
+
+
+
+fct_cols <- c("gp", "cohort",
+              "menopause_stt", "collect_yr_cat",
+              "ethnicity",
+              "edu_level",
+              "income_level",
+              "wh_menstruation_age_cat", "wh_menopause_age_cat",
+              "wh_contraceptives_ever",
+              "wh_breastfeeding_cat",
+              "wh_preg_first_age_cat",
+              "wh_hrt_ever",
+              "fam_hist_breast",
+              "alc_ever", "alc_cur_freq_cat", "alc_binge_cat",
+              "smk_cig_status", "smk_first_age_cat",
+              "bmi_cat",
+              "er_status", "pr_status", "her2_status", "hr_subtype",
+              "site_code", "hist_code", "hist_subtype")
+
+int_cols <- c("sdc_age_calc", "wh_gravidity", "wh_live_births")
+
+
+num_cols <- c("sdc_age_calc", "collect_age", "wh_gravidity",
+              "wh_live_births", "wh_hrt_duration_yr", "smk_cig_dur",
+              "pse_childhood_duration", "pse_adult_home_duration", "pse_adult_wrk_duration",
+              "bmi", "age_at_diagnosis")
+
+
+
+
+#=====================#
+
+
+
+
+# Import full questionnaire data ####
+import_survey <- function(){
+  full_dat <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv") %>%
+    mutate(across(all_of(fct_cols), as.factor)) %>%
+    mutate(across(all_of(int_cols), as.integer))
+
+  full_dat
+}
+
+
+
+# Import normalized metabolomics data
+import_meta_paired <- function(){
+  full_centered <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/normalized_metabolomics.csv")
+
+  full_centered
+}
+
+import_meta_sc <- function(){
+  full_sc <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/normalized_metabolomics_scaled.csv")
+}
+
+
+
+# Combine full questionnaire data with metabolomics data
+# combine_data <- function() full_join(import_survey(), import_meta())
+
+
+
+
+
+
+
 
 
 ##################

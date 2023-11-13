@@ -4,82 +4,14 @@
 library(tidyverse)
 library(foreach)
 
+source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
 
 
-## Variable categories ####
-
-id_cols <- c("studyid", "match_id")
-
-y_col <- "gp"
-
-match_cols <-  c("cohort", "collect_yr_cat", "collect_age", "menopause_stt")
-
-context_cols <- c("sdc_age_calc", "ethnicity",
-                  "edu_level", "income_level",
-                  "wh_menstruation_age_cat", "wh_menopause_age_cat",
-                  "wh_contraceptives_ever",
-                  "wh_gravidity", "wh_live_births", "wh_preg_first_age_cat",
-                  "wh_breastfeeding_cat",
-                  "wh_hrt_ever", "wh_hrt_duration_yr",
-                  "fam_hist_breast",
-                  "bmi", "bmi_cat",
-                  "alc_ever", "alc_cur_freq_cat", "alc_binge_cat",
-                  "smk_cig_status", "smk_cig_dur", "smk_first_age_cat",
-                  "pse_childhood_duration", "pse_adult_home_duration", "pse_adult_wrk_duration")
+full_dat <- import_survey()
+full_meta <- import_meta_sc()
 
 
-
-
-## Transform variables to factor ####
-full_dat <- full_dat %>%
-  mutate(across(c(gp, cohort,
-                  menopause_stt, collect_yr_cat,
-                  ethnicity,
-                  edu_level,
-                  income_level,
-                  wh_menstruation_age_cat, wh_menopause_age_cat,
-                  wh_contraceptives_ever,
-                  wh_breastfeeding_cat,
-                  wh_preg_first_age_cat,
-                  wh_hrt_ever,
-                  fam_hist_breast,
-                  alc_ever, alc_cur_freq_cat, alc_binge_cat,
-                  smk_cig_status, smk_cig_dur, smk_first_age_cat,
-                  pse_childhood_duration, pse_adult_home_duration, pse_adult_wrk_duration,
-                  bmi_cat,
-                  er_status, pr_status, her2_status, hr_subtype,
-                  site_code, hist_code, hist_subtype),
-                as_factor))
-
-
-## Merge questionnaire and metabolomics data ####
-full_all <- full_centered %>%
-  full_join(full_dat)
-
-write_csv(full_all, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/full_data_with_normalized_metabolomics.csv")
-
-
-
-full_all <- read_csv(
-  "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/full_data_with_normalized_metabolomics.csv"
-) %>%
-  mutate(across(c(gp, cohort,
-                  menopause_stt, collect_yr_cat,
-                  ethnicity,
-                  edu_level,
-                  income_level,
-                  wh_menstruation_age_cat, wh_menopause_age_cat,
-                  wh_contraceptives_ever,
-                  wh_breastfeeding_cat,
-                  wh_preg_first_age_cat,
-                  wh_hrt_ever,
-                  fam_hist_breast,
-                  alc_ever, alc_cur_freq_cat, alc_binge_cat,
-                  smk_cig_status, smk_first_age_cat,
-                  bmi_cat,
-                  er_status, pr_status, her2_status, hr_subtype,
-                  site_code, hist_code, hist_subtype),
-                as_factor))
+full_all <- full_dat %>% full_join(full_meta)
 
 
 
@@ -89,9 +21,12 @@ unadj_logistic <- function(dat){
   ion_cols <- colnames(dat)[grepl("^ion", colnames(dat))]
   n <- length(ion_cols)
 
+
   logreg_pvals <- data.frame(
-    metabolite=ion_cols,
-    beta_unadj = rep(0, n),
+    metabolite=rep("", n),
+    or_unadj = rep(0, n),
+    ci_lb = rep(0, n),
+    ci_ub = rep(0, n),
     pval=rep(0, n)
   )
 
@@ -106,12 +41,18 @@ unadj_logistic <- function(dat){
 
     # extract p-value for metabolite
     lr_coef <- summary(lr_mod)$coefficients
+    lr_ci <- confint(lr_mod)
+
     coef <- lr_coef[rownames(lr_coef)==ion, 1]
     pval <- lr_coef[rownames(lr_coef)==ion, 4]
+    ci_lb <- lr_ci[rownames(lr_ci)==ion, 1]
+    ci_ub <- lr_ci[rownames(lr_ci)==ion, 2]
 
-    logreg_pvals[i,1] <- ion
-    logreg_pvals[i,2] <- coef
-    logreg_pvals[i,3] <- pval
+    logreg_pvals$metabolite[i] <- ion
+    logreg_pvals$or_unadj[i] <- exp(coef)
+    logreg_pvals$ci_lb[i] <- exp(ci_lb)
+    logreg_pvals$ci_ub[i] <- exp(ci_ub)
+    logreg_pvals$pval[i] <- pval
   }
 
 
@@ -120,6 +61,7 @@ unadj_logistic <- function(dat){
 
   logreg_pvals
 }
+
 
 
 
@@ -138,11 +80,17 @@ summary(all_pvals)
 summary(all_pvals$p_adjust_fdr)
 
 table(all_pvals$p_adjust_fdr<=0.2)
+table(all_pvals$p_adjust_fdr<=0.1)
 
+
+all_pvals %>% filter(p_adjust_fdr<=0.2)
 
 
 sig_ions <- all_pvals %>%
-  filter(p_adjust_fdr<=0.2)
+  filter(p_adjust_fdr<=0.1) %>%
+  arrange(or_unadj)
+
+sig_ions
 
 
 write_csv(sig_ions,
@@ -152,16 +100,6 @@ write_csv(sig_ions,
 
 #=======================================================================#
 ### Adjust for each contextual variables ####
-
-###
-# list of imputed data
-dat_imp <- list()
-for (i in 1:5){
-  full_dat <- cbind(dat_pre_imp_id, complete(init, action=i))
-  dat_imp[[i]] <- full_join(full_centered, full_dat)
-}
-###
-
 
 
 # select list of significant metabolites
@@ -178,14 +116,12 @@ dim(bio_df)
 
 
 
-
-
-### Option a: loop without function ####
+# reiteratively fit logistic regression functions for each risk factor
 start_time=Sys.time()
 for (i in 1:nrow(bio_df)){
 
   # extract imputed data set
-  dat <- dat_imp[[bio_df$df_ver[i]]]
+  dat <- full_imp[[bio_df$df_ver[i]]]
 
   # select metabolite variable
   ion <- bio_df$metabolite[i]
@@ -228,8 +164,17 @@ bio_df_comb[bio_df_comb$beta_ratio>.10,]
 
 
 write_csv(bio_df_comb,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results.csv")
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_single_var.csv")
 
+
+bio_df_comb1 <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_single_var.csv")
+
+
+head(bio_df_comb1)
+
+# those altered by more than 10%
+bio_df_comb1 %>% filter(beta_ratio>.10)
+bio_df_comb1 %>% filter(beta_ratio<.05)
 
 #==================================================#
 ### Adjust for ALL contextual variables ####
@@ -247,8 +192,8 @@ bio_df <- data.frame(
 start_time=Sys.time()
 for (i in 1:nrow(bio_df)){
 
-  # extract imputed data set
-  dat <- dat_imp[[bio_df$df_ver[i]]]
+  # extract imputed data version
+  dat <- full_imp[[bio_df$df_ver[i]]]
 
   # select metabolite variable
   ion <- bio_df$metabolite[i]
@@ -257,7 +202,7 @@ for (i in 1:nrow(bio_df)){
   cols_adj <- c(y_col, match_cols, context_cols, ion)
 
   # subset data to select only relevant columns
-  lr_dat <- dat[,colnames(full_all) %in% cols_adj]
+  lr_dat <- dat[,colnames(dat) %in% cols_adj]
 
   # logreg fit
   adj_fit <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
@@ -277,10 +222,13 @@ end_time-start_time
 
 
 
-bio_df_comb <- bio_df %>%
+bio_df_comb2 <- bio_df %>%
   full_join(sig_ions) %>%
   mutate(beta_ratio = abs(1-beta_adj/beta_unadj))
 
-bio_df_comb %>% filter(beta_ratio<.05) %>%
-  count(df_ver)
+bio_df_comb2 %>% filter(beta_ratio>.10) %>% count(metabolite) %>% arrange(desc(n))
+bio_df_comb2 %>% filter(beta_ratio<.05) %>% count(metabolite) %>% arrange(desc(n))
 
+
+
+write_csv(bio_df_comb2, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_all_vars.csv")

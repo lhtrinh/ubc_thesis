@@ -123,7 +123,7 @@ for (i in 2:nrow(full_ion_trunc)){
 full_ion_trunc$order <- order
 
 
-# calculate mean of each consecutive pair of samples
+# calculate mean of each consecutive pair of samples (sampleid)
 # so that each tube id only has one measurement for each metabolite
 full_nonorm_sampleid <- full_ion_trunc %>%
   group_by(studyid, tubeid, order, sampletype, cohort, plate, dup) %>%
@@ -151,40 +151,52 @@ full_nonorm_dup <- full_nonorm_sampleid %>%
 
 
 
+## CV
 cv_nonorm_1 <- calc_cv_med(full_nonorm_dup, studyid)
-icc_nonorm_1 <- calc_icc(full_nonorm_dup, studyid)
+
+round(quantile(cv_nonorm_1$median_cv, probs=c(0,.05, .5, .95, 1)),3)
+high_cv_ions <- cv_nonorm_1 %>%
+  filter(median_cv>.2)
+
+high_cv_ions
+
+# qc_nonorm_1 <- cv_nonorm_1 %>%
+#   full_join(icc_nonorm_1)
 
 
-qc_nonorm_1 <- cv_nonorm_1 %>%
-  full_join(icc_nonorm_1)
+## ICC
+# icc_nonorm_1 <- calc_icc(full_nonorm_dup, studyid)
 
-
-round(quantile(qc_nonorm_1$median_cv, probs=c(0,.05, .5, .95, 1)),3)
-qc_nonorm_1 %>% count(median_cv>.2)
-
-round(quantile(qc_nonorm_1$icc, probs=c(0,.05, .5, .95, 1)), 3)
-table(cut(icc_nonorm_1$icc, breaks=icc_breaks, right=FALSE))
+# round(quantile(qc_nonorm_1$icc, probs=c(0,.05, .5, .95, 1)), 3)
+# table(cut(icc_nonorm_1$icc, breaks=icc_breaks, right=FALSE))
 
 
 
 
 
-# calculate count of metabolites with low ICC or high CV
-qc_nonorm_1 %>%
-  count(median_cv>.2, icc<.5)
+# # calculate count of metabolites with low ICC or high CV
+# qc_nonorm_1 %>%
+#   count(median_cv>.2, icc<.5)
+#
+# # plot ICC distribution
+# qc_nonorm_1 %>%
+#   ggplot(aes(icc, after_stat(scaled))) +
+#   geom_density() +
+#   scale_x_continuous(breaks = seq(0,1,.1))
 
-# plot ICC distribution
-qc_nonorm_1 %>%
-  ggplot(aes(icc, after_stat(scaled))) +
-  geom_density() +
-  scale_x_continuous(breaks = seq(0,1,.1))
 
+
+
+# filter out ions with CV > 20%
+# then average metabolite values of samples
+full_nonorm_cv <- full_nonorm_sampleid %>%
+  select(-all_of(high_cv_ions$metabolite))
 
 
 
 
 #===============================================#
-## 3. PCA plots ####
+## 3. Non-normalized PCA plots ####
 ##### for non-normalized samples (by plate and cohort)
 #==============#
 
@@ -211,7 +223,8 @@ fviz_pca_ind(pca_nonorm,
              label="none",
              habillage =  dat_nonorm$plate,
              alpha=.5,
-             addEllipses = TRUE)
+             addEllipses = TRUE)+
+  labs(title="PCA before normalization")
 
 # plot by cohort
 fviz_pca_ind(pca_nonorm,
@@ -219,7 +232,8 @@ fviz_pca_ind(pca_nonorm,
              alpha=.5,
              habillage = dat_nonorm$cohort,
              palette=c("blue", "red"),
-             addEllipses = FALSE)
+             addEllipses = TRUE) +
+  labs(title="PCA before normalization")
 
 
 
@@ -233,12 +247,12 @@ fviz_pca_ind(pca_nonorm,
 # normalize using only pSS and sample data
 
 
-nonorm_samp <- full_nonorm_sampleid %>%
+nonorm_samp <- full_nonorm_cv %>%
   filter(sampletype=="Sample")
-nonorm_pss <- full_nonorm_sampleid %>%
+nonorm_pss <- full_nonorm_cv %>%
   filter(cohort=="pSS")
 
-nonorm_samp_pss <- full_nonorm_sampleid %>%
+nonorm_samp_pss <- full_nonorm_cv %>%
   filter(cohort %in% c("BCGP", "ATP", "pSS"))
 
 
@@ -528,7 +542,7 @@ table(cut(qc_pqn_pss$icc, breaks=icc_breaks, right=FALSE))
 
 
 
-
+#######################################################################!!!
 #===================#
 ### cubic splines ####
 library(NCStats)
@@ -549,7 +563,6 @@ spline_dat <- t(normalize.qspline(
   target=apply(ion_df,1,geomean),
   verbose=TRUE
 ))
-
 colnames(spline_dat) <- rownames(ion_df)
 
 ion_df[1:10,1:10]
@@ -561,14 +574,84 @@ full_norm_spline[1:10,1:10]
 
 
 # post QC
-qc_spline <- norm_qc(full_norm_spline)
+# qc_spline <- norm_qc(full_norm_spline)
+#
+# round(quantile(qc_spline$median_cv, probs=c(0,.05, .5, .95, 1)),3)
+# qc_spline %>% count(median_cv>.2)
+#
+# round(quantile(qc_spline$icc, probs=c(0,.05, .5, .95, 1)), 3)
+# table(cut(qc_spline$icc, breaks=icc_breaks, right=FALSE))
 
-round(quantile(qc_spline$median_cv, probs=c(0,.05, .5, .95, 1)),3)
-qc_spline %>% count(median_cv>.2)
 
-round(quantile(qc_spline$icc, probs=c(0,.05, .5, .95, 1)), 3)
-table(cut(qc_spline$icc, breaks=icc_breaks, right=FALSE))
 
+### EVALUATE: PCA
+dat_norm_pca <- full_norm_spline %>% select(starts_with("ion"))
+pca_norm <- prcomp(dat_norm_pca)
+
+# plot by cohort
+fviz_pca_ind(pca_norm,
+             label="none",
+             alpha=.5,
+             habillage = full_norm_spline$cohort,
+             palette=c("blue", "red"),
+             addEllipses = TRUE,
+             legend.title="Cohort") +
+  labs(title="PCA after normalization")
+
+
+fviz_pca_ind(pca_norm,
+             label="none",
+             alpha=.5,
+             habillage = full_norm_spline$plate,
+             addEllipses = TRUE,
+             legend.title="Plate") +
+  labs(title="PCA after normalization")
+
+
+
+
+
+
+
+
+
+#===================#
+### cubic splines using QC samples (version 11/01/2023) ####
+qc_spec <- full_nonorm_sampleid %>%
+  filter(cohort=="pSS") %>%
+  select(-all_of(high_cv_ions$metabolite)) %>%
+  summarise(across(starts_with("ion"), geomean)) %>%
+  as_vector()
+
+
+set.seed(30340)
+qc_spline_dat <- t(normalize.qspline(
+  ion_df,
+  samples=.05,
+  target=qc_spec,
+  verbose=TRUE
+))
+
+colnames(qc_spline_dat) <- rownames(ion_df)
+qc_spline_dat[1:10,1:10]
+
+
+full_norm_qc_spline <- cbind(other_df, qc_spline_dat) %>% as_tibble()
+full_norm_qc_spline[1:10,1:10]
+
+
+
+
+dat_norm_pca <- full_norm_qc_spline %>% select(starts_with("ion"))
+pca_norm <- prcomp(dat_norm_pca)
+
+# plot by cohort
+fviz_pca_ind(pca_norm,
+             label="none",
+             alpha=.5,
+             habillage = full_norm_qc_spline$cohort,
+             palette=c("blue", "red"),
+             addEllipses = FALSE)
 
 
 
@@ -640,8 +723,11 @@ qc_spline_qc %>% count(median_cv>.2)
 round(quantile(qc_spline_qc$icc, probs=c(0,.05, .5, .95, 1)), 3)
 table(cut(qc_spline_qc$icc, breaks=icc_breaks, right=FALSE))
 
+###########################################################################!!!
 
 
+
+#===================#
 ### variance stabilization normalization (VSN) ####
 library(vsn)
 
@@ -702,43 +788,38 @@ full_norm <- full_norm_spline
 
 
 
-dim(full_norm)
+full_studyid <- full_norm %>%
+  group_by(studyid) %>%
+  summarise(across(starts_with("ion"), mean)) %>%
+  ungroup()
 
 
 
 #===============================================#
-## 6. Finish preprocessing ####
+## 6. Scaling ####
 ###   - Calculate mean of duplicate samples
 ###   - Pareto-scale, and within-pair mean centering
 ###   - Merge with questionnaire data
 
-# pareto scale
-full_sc <- full_norm %>%
+# autoscale
+full_sc <- full_studyid %>%
   mutate(across(starts_with("ion"),
-                function(x) (x-mean(x))/sqrt(sd(x))))
+                function(x) (x-mean(x))/sd(x)
+                )
+         )
 
 
-# # QC again
-# qc_sc <- norm_qc(full_sc)
-#
-# round(quantile(qc_sc$median_cv, probs=c(0,.05, .5, .95, 1)),3)
-# qc_sc %>% count(median_cv>.2)
-#
-# round(quantile(qc_sc$icc, probs=c(0,.05, .5, .95, 1)), 3)
-# table(cut(qc_sc$icc, breaks=icc_breaks, right=FALSE))
+# save to csv
+write_csv(full_sc,
+          "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/normalized_metabolomics_scaled.csv")
 
 
 
 
-
-
-# Calculate mean of duplicate samples
-full_studyid <- full_sc %>%
-    group_by(studyid, dup) %>%
-    summarise(across(starts_with("ion"), mean)) %>%
-    ungroup()
-
+#===============================================#
+## 7. Center by within-pair mean ####
 # subtract all metabolites by within-pair mean
+
 full_centered <- full_studyid %>%
   full_join(full_dat[,colnames(full_dat) %in% c("studyid", "match_id")]) %>%
   group_by(match_id) %>%
@@ -746,14 +827,74 @@ full_centered <- full_studyid %>%
   ungroup()
 
 
+full_sc <- full_centered %>%
+  mutate(across(starts_with("ion"), function(x) x/sd(x)))
+
+
+
+# full_centered <- full_sc %>%
+#   full_join(full_dat[,colnames(full_dat) %in% c("studyid", "match_id")]) %>%
+#   group_by(match_id) %>%
+#   mutate(across(starts_with("ion"), function(x) x-mean(x))) %>%
+#   ungroup()
+
+
+
+# save to csv
+write_csv(full_centered,
+          "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/normalized_metabolomics_pair_centered.csv")
+
+
+
+#===========================================#
+## RLE plots ####
+### EVALUATE: RLE
+
+
+# before normalization
+ids <- nonorm_samp$tubeid
+samp_id <- sample(ids, 200, replace=FALSE)
+
+
+dat_nonorm_rle <- nonorm_samp %>%
+  mutate(across(starts_with("ion"),
+                function(x) x-median(x))) %>%
+  select(tubeid, cohort, starts_with("ion")) %>%
+  pivot_longer(-c(tubeid, cohort), names_to="ion") %>%
+  filter(tubeid %in% samp_id)
+
+
+dat_nonorm_rle %>%
+  ggplot()+
+  geom_boxplot(aes(tubeid, value, fill=cohort), outlier.size=.01) +
+  geom_hline(yintercept=0) +
+  ylim(-20000, 20000) +
+  labs(x="sample", y="relative log expression") +
+  theme(axis.text.x=element_blank())
 
 
 
 
+# after normalization
+# ions <- names(full_sc)[grepl("^ion_", names(full_sc))]
+# samp_ion <- sample(ions, 30, replace=FALSE)
+
+dat_norm_rle <- full_norm_spline %>%
+  # group_by(cohort) %>%
+  mutate(across(starts_with("ion"),
+                function(x) x-median(x))) %>%
+  select(tubeid, cohort, starts_with("ion")) %>%
+  pivot_longer(-c(tubeid, cohort), names_to="ion") %>%
+  filter(tubeid %in% samp_id)
 
 
-
-
+dat_norm_rle %>%
+  ggplot()+
+  geom_boxplot(aes(tubeid, value, fill=cohort), outlier.size=.01) +
+  geom_hline(yintercept=0) +
+  ylim(-20000, 20000) +
+  labs(x="sample", y="relative log expression") +
+  theme(axis.text.x=element_blank())
 
 
 

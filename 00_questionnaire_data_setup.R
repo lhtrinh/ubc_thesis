@@ -289,10 +289,9 @@ summary(temp1$bmi)
 ### Categorize collect_year
 temp1 <- temp1 %>%
   mutate(collect_yr_cat = case_when(
-    collect_year %in% c(2009,2010) ~ "yr_09_10",
-    collect_year %in% c(2011, 2012) ~ "yr_11_12",
-    collect_year %in% c(2013, 2014) ~ "yr_13_14",
-    collect_year %in% c(2015, 2016) ~ "yr_15_16",
+    between(collect_year,2009,2011) ~ "yr_09_11",
+    between(collect_year,2002,2013) ~ "yr_12_13",
+    between(collect_year,2014,2016) ~ "yr_14_16",
     TRUE ~ NA_character_
   ))
 
@@ -369,7 +368,7 @@ temp1 <- temp1 %>%
     alc_cur_freq == 0 ~ "cat0_never",
     between(alc_cur_freq, 1, 3) ~ "cat1_1_3_per_month",
     between(alc_cur_freq, 4, 5) ~ "cat2_1_3_per_week",
-    between(alc_cur_freq, 6, 7) ~ "cat3_4_per_week_or_more",
+    between(alc_cur_freq, 6, 7) ~ "cat3_4_or_more_per_week",
     TRUE ~ NA_character_
   ))
 temp1 %>% count(gp, alc_cur_freq_cat) %>% arrange(alc_cur_freq_cat, gp) %>% mutate(p=n/sum(n))
@@ -385,8 +384,7 @@ temp1 <- temp1 %>%
     alc_binge_freq_female == 0 | alc_ever==0 ~ "cat0_never",
     between(alc_binge_freq_female, 1, 2) ~ "cat1_1_11_per_year",
     between(alc_binge_freq_female, 3, 4) ~ "cat2_1_3_per_month",
-    between(alc_binge_freq_female, 5, 6) ~ "cat3_1_3_per_week",
-    between(alc_binge_freq_female, 7, 8) ~ "cat4_4_7_per_week",
+    between(alc_binge_freq_female, 5, 6) ~ "cat3_1_or_more_per_week",
     TRUE ~ NA_character_
   ))
 
