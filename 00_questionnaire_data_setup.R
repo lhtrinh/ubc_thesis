@@ -481,9 +481,9 @@ temp1 <- temp1 %>%
 # set menstruation categories
 temp1 <- temp1 %>%
   mutate(wh_menstruation_age_cat=case_when(
-    wh_menstruation_age<=12 ~ "cat1_under_12",
-    between(wh_menstruation_age, 13, 14) ~ "cat2_13_14",
-    wh_menstruation_age>14 ~ "cat3_over_14"
+    wh_menstruation_age<12 ~ "cat1_under_12",
+    between(wh_menstruation_age, 12, 13) ~ "cat2_12_13",
+    wh_menstruation_age>=14 ~ "cat3_14_or_older"
   ))
 
 # set live births to 0 if gravidity=0
@@ -732,16 +732,7 @@ write_csv(full_dat, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing
 
 
 
-
-
-
-
-
-
-
-
-
-
+#======================================================================#
 #======================================================================#
 # load crosswalk between participant and sample IDs for ATP
 atp_id_crosswalk <- read_xlsx(
@@ -795,7 +786,7 @@ atp_id_cw4 %>%
   filter(barcode==170965728 | barcode==81869160) #same participant
 
 # there is one duplicate barcode that appeared twice
-# looks like the same ID throughout so we can remove the "double-duplicated" barcode
+# looks like the same ID throughout so we can remove the twice duplicated barcode
 atp_id_cw5 <- atp_id_cw4[!duplicated(atp_id_cw4),]
 
 # remove two participants with no record in questionnaire data
@@ -813,7 +804,7 @@ dim(atp_id_cw)
 
 #======================================================================#
 # ID cw
-bcgp_id_cw <- full_dat %>%
+bcgp_id_cw <- temp2 %>%
   filter(cohort=="bcgp") %>%
   select(studyid, dup) %>%
   mutate(barcode=studyid) %>%
@@ -828,6 +819,8 @@ dim(id_cw)
 
 
 #======================================================================#
+
+
 write_csv(atp_id_cw,
           file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/atp_id_crosswalk.csv")
 

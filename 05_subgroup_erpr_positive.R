@@ -1,5 +1,5 @@
 #=============================================================#
-# BIOMARKER DISCOVERY WITH LOGISTIC REGRESSION ####
+# BIOMARKER DISCOVERY WITH LOGISTIC REGRESSION (ER/PR-POSITIVE) ####
 #=============================================================#
 library(tidyverse)
 library(foreach)
@@ -58,22 +58,24 @@ unadj_logreg <- function(dat){
     }
 
   # lr_out_df <- as.data.frame(lr_out)
-  }
+}
 
 
 
 
 #===================================#
 ### Apply on full data set ####
+erpr_match_id <- full_all$match_id[full_all$er_status=="positive" | full_all$pr_status=="positive"]
+full_erpr <- full_all %>% filter(match_id %in% erpr_match_id)
 
-all_pvals <- unadj_logreg(full_all)
-head(all_pvals)
+
+hrpr_pvals <- unadj_logreg(full_hrpr)
 
 
 #===================================#
 ### Correction for multiple testing ####
-all_pvals$q_fdr <- p.adjust(all_pvals$pval, method="fdr")
-head(all_pvals)
+hrpr_pvals$q_fdr <- p.adjust(hrpr_pvals$pval, method="fdr")
+head(hrpr_pvals)
 
 
 
@@ -81,7 +83,7 @@ head(all_pvals)
 ### Manual calculation for BH correction ####
 
 
-pvals <- all_pvals %>% select(metabolite, pval)
+pvals <- hrpr_pvals %>% select(metabolite, pval)
 
 # pvalues <- pvals$pval
 
@@ -93,7 +95,7 @@ Q <- 0.1
 
 # calculate critical value
 critical_val <- (ranks/m)*Q
-all_pvals$critical_val <- critical_val
+hrpr_pvals$critical_val <- critical_val
 
 
 
@@ -117,7 +119,7 @@ critical_val[pvals$pval<=largest_pval]
 
 
 
-sig_ions_df <- all_pvals %>%
+sig_ions_hrpr <- hrpr_pvals %>%
   filter(pval<=largest_pval) %>%
   arrange(beta_unadj)
 
@@ -125,31 +127,40 @@ sig_ions_df <- all_pvals %>%
 
 
 
-write_csv(all_pvals,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals.csv")
+write_csv(hrpr_pvals,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/hrpr_pvals.csv")
 
 
+
+x_hrpr <- sig_ions_hrpr %>%
+  mutate(across(c(beta_unadj, ci_lb, ci_ub), function(x) round(exp(x), 2))) %>%
+  mutate(or_hrpr = paste(beta_unadj, " (", ci_lb, "-", ci_ub, ")", sep="")) %>%
+  select(metabolite,or_hrpr)
+
+x_hrpr
+
+write_csv(x_hrpr, file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Output/x_hrpr.csv")
 
 
 
 #===================================#
-# all_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals.csv")
+# hrpr_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/hrpr_pvals.csv")
 
-summary(all_pvals)
-summary(all_pvals$q_fdr)
+summary(hrpr_pvals)
+summary(hrpr_pvals$q_fdr)
 
-table(all_pvals$q_fdr<=0.2)
-table(all_pvals$q_fdr<=0.1)
-
-
+table(hrpr_pvals$q_fdr<=0.2)
+table(hrpr_pvals$q_fdr<=0.1)
 
 
-sig_ions_all <- all_pvals %>%
+
+
+sig_ions_all <- hrpr_pvals %>%
   filter(q_fdr<=0.1) %>%
   arrange(beta_unadj)
 
 sig_ions_0.1 <- sig_ions_all$metabolite
-nonsig_ions_0.1 <- all_pvals$metabolite[all_pvals$q_fdr>0.1]
+nonsig_ions_0.1 <- hrpr_pvals$metabolite[hrpr_pvals$q_fdr>0.1]
 
 sig_ions_all
 
@@ -158,7 +169,7 @@ sig_ions_all
 
 
 # record all vars for FDR level 0.2
-sig_ions_0.2 <- all_pvals$metabolite[all_pvals$q_fdr>0.2]
+sig_ions_0.2 <- hrpr_pvals$metabolite[hrpr_pvals$q_fdr>0.2]
 
 
 

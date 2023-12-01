@@ -89,8 +89,6 @@ for (i in 1:length(boot_list_import)){
   boot_list_import[[i]][boot_list_import[[i]]==""] <- NA
   boot_list_import[[i]][fct_cols] <- lapply(boot_list_import[[i]][fct_cols], as_factor)
   boot_list_import[[i]][int_cols] <- lapply(boot_list_import[[i]][int_cols], as.integer)
-
-  boot_list_import[[i]] <- boot_list_import[[i]] %>% select(-alc_ever, -wh_hrt_ever, -wh_contraceptives_ever)
 }
 
 

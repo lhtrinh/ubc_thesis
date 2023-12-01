@@ -1,8 +1,8 @@
-########################################################
+#======================================================#
 #
 ###    MANUALLY DEFINED FUNCTIONS FOR METABOLOMCIS   ###
 #
-########################################################
+#======================================================#
 library(tidyverse)
 library(lme4)
 library(performance)
@@ -10,7 +10,7 @@ library(readr)
 
 
 #=====================#
-
+# GROUP VARIABLES ####
 
 y_col <- "gp"
 
@@ -65,13 +65,16 @@ num_cols <- c("sdc_age_calc", "collect_age", "wh_gravidity",
 
 
 
+n_imp <- 10
+
+
 
 #=====================#
 
 
 
 
-# Import full questionnaire data ####
+# IMPORT DATA ####
 import_survey <- function(){
   full_dat <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv") %>%
     mutate(across(all_of(fct_cols), as.factor)) %>%
@@ -106,9 +109,8 @@ import_meta_sc <- function(){
 
 
 
-##################
-# CALCULATE CV
-##################
+
+# CALCULATE CV #########
 
 # cv_calc: calculate coefficient of variation (CV%)
 # per metabolite per participant by dividing each
@@ -159,9 +161,7 @@ calc_cv_med <- function(dat, group_var){
 
 
 #=====================#
-##################
-# CALCULATE ICC
-##################
+# CALCULATE ICC ########
 
 
 calc_icc <- function(dat, group_var){
@@ -203,9 +203,7 @@ calc_icc <- function(dat, group_var){
 
 
 #=====================#
-##################
-# TEST FOR NORMALITY OF METABOLITE LEVELS
-##################
+# TEST FOR NORMALITY OF METABOLITE LEVELS #######
 
 
 
@@ -234,9 +232,8 @@ normality_skewness <- function(df) {
 
 
 #=====================#
-##################
-# QC FOR NORMALIZATION
-##################
+# QC FOR NORMALIZATION ####
+
 
 
 # norm_qc function:
@@ -282,3 +279,36 @@ norm_qc <- function(df){
 }
 
 
+
+
+
+#=====================#
+# CALCULATE IMPUTED CI (RUBIN'S RULE) ####
+imputed_ci <- function(x){
+  # x is a vector of estimates
+
+
+  # calculate pooled estimate
+  pooled_est <- mean(x)
+
+  # calculate pooled SE
+  m <- length(x)
+  se <- sd(x)/sqrt(m)
+
+  within_var <- mean(se^2)
+  btwn_var <- sum((x-pooled_est)^2)/(m-1)
+  total_var <- within_var + btwn_var + btwn_var/m
+
+  pooled_se <- sqrt(total_var)
+
+  # calculate t-statistic for 95% CI
+  alpha <- .05
+  deg_free <- m-1
+  t.score <- qt(p=alpha/2, df=deg_free, lower.tail = FALSE)
+
+  # calculate 95% CI lower and upper bounds
+  ci_lb <- pooled_est - t.score*pooled_se
+  ci_ub <- pooled_est + t.score*pooled_se
+
+  c(pooled_est, pooled_se, ci_lb, ci_ub)
+}

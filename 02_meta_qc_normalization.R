@@ -52,7 +52,7 @@ full_ion_nonorm <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/meta_non_
 
 
 # load questionnaire data
-full_dat <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
+full_dat <- import_survey()
 
 
 # load ion hit frequency for missingness information
@@ -201,7 +201,7 @@ full_nonorm_cv <- full_nonorm_sampleid %>%
 #==============#
 
 
-dat_nonorm <- full_nonorm_sampleid %>%
+dat_nonorm <- full_nonorm_cv %>%
   filter(sampletype=="Sample") %>%
   mutate(plate11_yn=ifelse(plate==11, "Plate 11", "Other plates"))
 
@@ -559,7 +559,7 @@ ion_df <- nonorm_samp %>%
 set.seed(30340)
 spline_dat <- t(normalize.qspline(
   ion_df,
-  samples=.05,
+  samples=0.05,
   target=apply(ion_df,1,geomean),
   verbose=TRUE
 ))
@@ -775,7 +775,7 @@ table(cut(qc_vsn$icc, breaks=icc_breaks, right=FALSE))
 
 
 #===============================================#
-## 5. Select method ####
+## Select method ####
 
 # cubic spline
 full_norm <- full_norm_spline
@@ -788,63 +788,6 @@ full_norm <- full_norm_spline
 
 
 
-full_studyid <- full_norm %>%
-  group_by(studyid) %>%
-  summarise(across(starts_with("ion"), mean)) %>%
-  ungroup()
-
-
-
-#===============================================#
-## 6. Scaling ####
-###   - Calculate mean of duplicate samples
-###   - Pareto-scale, and within-pair mean centering
-###   - Merge with questionnaire data
-
-# autoscale
-full_sc <- full_studyid %>%
-  mutate(across(starts_with("ion"),
-                function(x) (x-mean(x))/sd(x)
-                )
-         )
-
-
-# save to csv
-write_csv(full_sc,
-          "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/normalized_metabolomics_scaled.csv")
-
-
-
-
-#===============================================#
-## 7. Center by within-pair mean ####
-# subtract all metabolites by within-pair mean
-
-full_centered <- full_studyid %>%
-  full_join(full_dat[,colnames(full_dat) %in% c("studyid", "match_id")]) %>%
-  group_by(match_id) %>%
-  mutate(across(starts_with("ion"), function(x) x-mean(x))) %>%
-  ungroup()
-
-
-full_sc <- full_centered %>%
-  mutate(across(starts_with("ion"), function(x) x/sd(x)))
-
-
-
-# full_centered <- full_sc %>%
-#   full_join(full_dat[,colnames(full_dat) %in% c("studyid", "match_id")]) %>%
-#   group_by(match_id) %>%
-#   mutate(across(starts_with("ion"), function(x) x-mean(x))) %>%
-#   ungroup()
-
-
-
-# save to csv
-write_csv(full_centered,
-          "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/normalized_metabolomics_pair_centered.csv")
-
-
 
 #===========================================#
 ## RLE plots ####
@@ -853,6 +796,8 @@ write_csv(full_centered,
 
 # before normalization
 ids <- nonorm_samp$tubeid
+
+set.seed(46867)
 samp_id <- sample(ids, 200, replace=FALSE)
 
 
@@ -895,6 +840,58 @@ dat_norm_rle %>%
   ylim(-20000, 20000) +
   labs(x="sample", y="relative log expression") +
   theme(axis.text.x=element_blank())
+
+
+
+
+
+
+
+#===============================================#
+## Average all dups to get one measurement
+
+full_studyid <- full_norm %>%
+  group_by(studyid) %>%
+  summarise(across(starts_with("ion"), mean)) %>%
+  ungroup()
+
+
+#===============================================#
+## Center by within-pair mean ####
+# subtract all metabolites by within-pair mean
+
+full_centered <- full_studyid %>%
+  full_join(full_dat[,colnames(full_dat) %in% c("studyid", "match_id")]) %>%
+  group_by(match_id) %>%
+  mutate(across(starts_with("ion"), function(x) x-mean(x))) %>%
+  ungroup()
+
+# save to csv
+write_csv(full_centered,
+          "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/normalized_metabolomics_pair_centered.csv")
+
+
+
+
+
+#===============================================#
+## Scaling ####
+full_sc <- full_centered %>%
+  mutate(across(starts_with("ion"), function(x) x/sd(x)))
+
+# save to csv
+write_csv(full_sc,
+          "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/normalized_metabolomics_scaled.csv")
+
+
+
+
+
+
+
+
+
+
 
 
 

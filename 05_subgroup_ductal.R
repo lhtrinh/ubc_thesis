@@ -1,5 +1,5 @@
 #=============================================================#
-# BIOMARKER DISCOVERY WITH LOGISTIC REGRESSION ####
+# BIOMARKER DISCOVERY WITH LOGISTIC REGRESSION (DUCTAL) ####
 #=============================================================#
 library(tidyverse)
 library(foreach)
@@ -58,22 +58,24 @@ unadj_logreg <- function(dat){
     }
 
   # lr_out_df <- as.data.frame(lr_out)
-  }
+}
 
 
 
 
 #===================================#
 ### Apply on full data set ####
+ductal_match_id <- full_all$match_id[full_all$hist_subtype=="ductal"]
+full_ductal <- full_all %>% filter(match_id %in% ductal_match_id)
 
-all_pvals <- unadj_logreg(full_all)
-head(all_pvals)
+
+ductal_pvals <- unadj_logreg(full_ductal)
 
 
 #===================================#
 ### Correction for multiple testing ####
-all_pvals$q_fdr <- p.adjust(all_pvals$pval, method="fdr")
-head(all_pvals)
+ductal_pvals$q_fdr <- p.adjust(ductal_pvals$pval, method="fdr")
+head(ductal_pvals)
 
 
 
@@ -81,7 +83,7 @@ head(all_pvals)
 ### Manual calculation for BH correction ####
 
 
-pvals <- all_pvals %>% select(metabolite, pval)
+pvals <- ductal_pvals %>% select(metabolite, pval)
 
 # pvalues <- pvals$pval
 
@@ -93,7 +95,7 @@ Q <- 0.1
 
 # calculate critical value
 critical_val <- (ranks/m)*Q
-all_pvals$critical_val <- critical_val
+ductal_pvals$critical_val <- critical_val
 
 
 
@@ -117,7 +119,7 @@ critical_val[pvals$pval<=largest_pval]
 
 
 
-sig_ions_df <- all_pvals %>%
+sig_ions_ductal <- ductal_pvals %>%
   filter(pval<=largest_pval) %>%
   arrange(beta_unadj)
 
@@ -125,31 +127,40 @@ sig_ions_df <- all_pvals %>%
 
 
 
-write_csv(all_pvals,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals.csv")
+write_csv(ductal_pvals,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ductal_pvals.csv")
 
 
+
+x_ductal <- sig_ions_ductal %>%
+  mutate(across(c(beta_unadj, ci_lb, ci_ub), function(x) round(exp(x), 2))) %>%
+  mutate(or_ductal = paste(beta_unadj, " (", ci_lb, "-", ci_ub, ")", sep="")) %>%
+  select(metabolite,or_ductal)
+
+x_ductal
+
+write_csv(x_ductal, file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Output/x_ductal.csv")
 
 
 
 #===================================#
-# all_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals.csv")
+# ductal_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ductal_pvals.csv")
 
-summary(all_pvals)
-summary(all_pvals$q_fdr)
+summary(ductal_pvals)
+summary(ductal_pvals$q_fdr)
 
-table(all_pvals$q_fdr<=0.2)
-table(all_pvals$q_fdr<=0.1)
-
-
+table(ductal_pvals$q_fdr<=0.2)
+table(ductal_pvals$q_fdr<=0.1)
 
 
-sig_ions_all <- all_pvals %>%
+
+
+sig_ions_all <- ductal_pvals %>%
   filter(q_fdr<=0.1) %>%
   arrange(beta_unadj)
 
 sig_ions_0.1 <- sig_ions_all$metabolite
-nonsig_ions_0.1 <- all_pvals$metabolite[all_pvals$q_fdr>0.1]
+nonsig_ions_0.1 <- ductal_pvals$metabolite[ductal_pvals$q_fdr>0.1]
 
 sig_ions_all
 
@@ -158,7 +169,7 @@ sig_ions_all
 
 
 # record all vars for FDR level 0.2
-sig_ions_0.2 <- all_pvals$metabolite[all_pvals$q_fdr>0.2]
+sig_ions_0.2 <- ductal_pvals$metabolite[ductal_pvals$q_fdr>0.2]
 
 
 

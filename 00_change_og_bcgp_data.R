@@ -11,6 +11,7 @@ library(readr)
 
 
 #===========================================================#
+# LOAD DATA ####
 # load full cohort data for imputation
 bc_all <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP/Multiple imputation task/Forimputation_BL_HLQ_PM_clean.csv")
 colnames(bc_all) <- tolower(colnames(bc_all))
@@ -34,7 +35,7 @@ bc_raw_og <- bc_raw_og[!duplicated(bc_raw_og$studyid),]
 
 
 #===========================================================#
-
+# ADD VARIABLE FOR HISTORY OF BREAST CANCER ####
 
 setdiff(bc_cw$study_id, bc_all$study_id)
 bc_cw %>% filter(is.na(study_id)) #one participant did not have a studyid
@@ -50,7 +51,7 @@ bc_proj <- bc_all %>%
 
 
 
-
+# add one variable
 bc_raw <- bc_raw_og %>%
   left_join(subset(bc_proj, select=c("studyid", "dis_cancer_child_breast", "dis_cancer_child_breast_num"))) %>%
   arrange(studyid)
@@ -58,5 +59,6 @@ bc_raw <- bc_raw_og %>%
 
 
 #===========================================================#
+# UPDATE DATA ####
 write_csv(bc_raw,
           file="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP/BCGP_data.csv")
