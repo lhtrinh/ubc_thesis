@@ -6,22 +6,29 @@ library(psych)
 library(moments)
 library(readr)
 
-#######################################################
+#=========================================================#
+
 
 
 
 #====================#
-## BCGP data
+# BCGP data ####
 #====================#
 
 # load data sets
-bc_raw <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP/BCGP_data.csv")
+
+# this code loads BCGP survey data
+source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_setup_add_var_bc_dat.R")
 colnames(bc_raw) <- tolower(colnames(bc_raw))
+dim(bc_raw)
+
+# hormone receptor status data
 bc_hormones <- read_sav("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP/BCGP2641_Y2022_BCCR_incidence_breast_hormones.sav")
 colnames(bc_hormones) <- tolower(colnames(bc_hormones))
+
+# matching information data
 bc_match_ind <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/BCGP/BCGP2641_MatchIndicator.csv")
 colnames(bc_match_ind) <- tolower(colnames(bc_match_ind))
-
 
 
 
@@ -67,7 +74,8 @@ bc_raw3 <- bc_raw2 %>%
 
 
 
-# Add age at blood collection
+# Calculate age at blood collection
+## by calculating difference between year of survey and year of blood collection
 bc_raw4 <- bc_raw3 %>%
   mutate(collect_age = (sdc_age_calc+(collect_year-year(adm_qx_completion))))
 
@@ -80,7 +88,11 @@ dim(bc_dat)
 n_distinct(bc_dat$match_id)
 
 
-####################################################################
+
+
+
+
+#=========================================================#
 
 
 
@@ -88,25 +100,29 @@ n_distinct(bc_dat$match_id)
 
 
 #====================#
-## ATP data
+# ATP data ####
 #====================#
 
-# load data sets
+# survey data
 atp_raw <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/vw2105_HFRQ_BL_CPAC.csv")
 colnames(atp_raw) <- tolower(colnames(atp_raw))
+
+# physical measurements
 atp_pm_measure <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/vw2105_PM_BL_CPAC.csv")
 colnames(atp_pm_measure) <- tolower(colnames(atp_pm_measure))
+
+# hormone receptor status
 atp_hormones <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/vw2105_ACR_Breast_DX_ER_PR.csv")
 colnames(atp_hormones) <- tolower(colnames(atp_hormones))
 
 
 
-# atp unharmonized data
+# unharmonized data, contains case information
 atp_cases <- read.csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/vw2105_ACR.csv")
 colnames(atp_cases) <- tolower(colnames(atp_cases))
 
 
-# match ID
+# matching ID data
 atp_matched_pairs <- read_xlsx(path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ATP/2105_Study2105_03_29_2023_CaseControl_ParticipantKeyMatchedList.xlsx",
                                sheet="Sheet1")
 
@@ -133,10 +149,6 @@ atp_match_id %>% head()
 
 
 
-#====================#
-# remove duplicates
-#====================#
-
 
 # atp_hormones: change variable names for HR/HER2 status and change all values to lowercase
 atp_hormones <- atp_hormones %>%
@@ -152,6 +164,7 @@ atp_hormones <- atp_hormones %>%
                 function(x) ifelse(grepl("Positive", x), "positive",
                                    ifelse(grepl("Negative", x), "negative", NA))))
 
+# remove duplicates
 atp_hormones_new <- atp_hormones[!duplicated(atp_hormones$participantkey),]
 
 
@@ -194,7 +207,7 @@ atp_raw2 <- atp_raw %>%
 atp_raw2$adm_qx_completion <- as.Date(atp_raw2$adm_qx_completion)
 
 
-######!!!
+# calculate year at blood collection
 atp_raw3 <- atp_raw2 %>%
   mutate(adm_qx_completion = as.Date(atp_raw2$adm_qx_completion),
          collect_year = round(year(adm_qx_completion) + (collect_age - sdc_age_calc), 0))
@@ -204,18 +217,18 @@ summary(atp_raw3$collect_year)
 #====================#
 # Replace all -7 with NAs
 #====================#
-atp_raw3[atp_raw3==-7] <- NA
+# atp_raw3[atp_raw3==-7] <- NA
 
 
-#====================#
-# Create new variables from data
-#====================#
+
+# Rename ATP identifier variable (participantkey) to studyid
 
 atp_raw4 <- atp_raw3 %>%
   mutate(cohort="atp",
          studyid=as.character(participantkey))
 
 
+# remove work variables
 atp_raw5 <- atp_raw4 %>%
   select(-starts_with("wrk"))
 
@@ -228,23 +241,8 @@ atp_dat <- atp_raw5
 
 
 
-
-
-#====================#
-# remove 2 participants that are no longer eligible
-# participant 210503833 are not
-# atp_dat %>%
-#   filter(!studyid %in% c("210503833", "210524604"))
-
-
-#####################################################################
-
-# change type of som variables that are incompatible
-
-
-
-
-# COMBINE THE TWO DATA SETS
+#=========================================================#
+# COMBINE DATA SETS ####
 
 dat_raw <- bc_dat %>%
   full_join(atp_dat)
@@ -267,49 +265,85 @@ dat_raw[dat_raw==-7] <- NA
 
 
 
-#####################################################################
+#=========================================================#
+# CREATE NEW VARIABLES ####
+
+
+
 #====================#
-# Create new variables from data
-#====================#
-
-
-
-
-
-
-### BMI and BMI categories
-temp1 <- dat_raw %>%
-  mutate(bmi=as.numeric(coalesce(pm_tanitabmi, pm_bioimped_bmi, pm_bmi_sr))) %>%
-  mutate(bmi_cat=factor(findInterval(bmi, c(18.5, 25, 30)),
-                        labels=c("underweight", "normal", "overweight", "obese")))
-temp1 %>% count(bmi_cat)
-summary(temp1$bmi)
-
-
+## Matching factors ####
 ### Categorize collect_year
-temp1 <- temp1 %>%
+temp1 <- dat_raw %>%
   mutate(collect_yr_cat = case_when(
     between(collect_year,2009,2011) ~ "yr_09_11",
-    between(collect_year,2002,2013) ~ "yr_12_13",
+    between(collect_year,2012,2013) ~ "yr_12_13",
     between(collect_year,2014,2016) ~ "yr_14_16",
     TRUE ~ NA_character_
   ))
 
 
 
-# another breast cancer subtype
+
+
+
+# impute menopause status for ATP, then combine with BCGP
 temp1 <- temp1 %>%
-  mutate(hr_subtype=case_when(
-    er_status=="negative" & pr_status=="negative" & her2_status=="negative" ~ "triple_negative",
-    her2_status=="positive" ~ "her2_positive",
-    (er_status=="positive" | pr_status=="positive") ~ "hr_positive",
-    gp=='CNTL' ~ "control",
+  mutate(ms_bc=ifelse(str_detect(menopause_status, "Post"), 1, 0),
+         ms_atp=ifelse(!is.na(wh_menopause_ever), wh_menopause_ever,
+                       ifelse(sdc_age_calc>=51, 1, 0))
+  ) %>%
+  mutate(menopause_stt = coalesce(ms_bc, ms_atp))
+
+
+
+
+
+
+
+
+#====================#
+## Demographics ####
+
+
+## ethnicity
+# create white/non-white categories for ethnicity
+temp1 <- temp1 %>%
+  mutate(ethnicity = coalesce(sdc_eb_white, !!!select(., starts_with("sdc_eb_"))))
+temp1 %>% count(ethnicity)
+
+
+# education levels
+temp1 <- temp1 %>%
+  mutate(edu_level = case_when(
+    sdc_edu_level %in% 1:2 ~ "1_high_school_or_less",
+    sdc_edu_level %in% 3:5 ~ "2_some_uni",
+    sdc_edu_level %in% 6:7 ~ "3_bachelor_or_more",
     TRUE ~ NA_character_
   ))
-temp1 %>% count(hr_subtype)
+temp1 %>% count(edu_level)
+
+
+# income level
+temp1 <- temp1 %>%
+  mutate(income_level = case_when(
+    sdc_income %in% 1:3 ~ "1_50k_or_less",
+    sdc_income %in% 4:5 ~ "2_50k_to_100k",
+    sdc_income %in% 6:8 ~ "3_100k_or_more",
+    TRUE ~ NA_character_
+  ))
+temp1 %>% count(income_level)
 
 
 
+
+
+
+
+
+
+
+#====================#
+## Family/Reproductive factors ####
 
 
 ### Family history of breast cancer
@@ -351,140 +385,17 @@ temp1 %>% count(gp, fam_hist_breast_cat) %>% mutate(p=n/sum(n))
 
 
 
-#############
-
-### alcohol consumption
-
-# if alc_ever=0, set alcohol frequency and binge frequency to 0
-temp1 <- temp1 %>%
-  mutate(alc_cur_freq = ifelse(alc_ever==0, 0, alc_cur_freq)) %>%
-  mutate(across(c(alc_binge_freq_female, ends_with("week")),
-                function(x) ifelse(alc_cur_freq==0, 0, x)))
 
 
-# create new categories for alcohol frequencies
-temp1 <- temp1 %>%
-  mutate(alc_cur_freq_cat = case_when(
-    alc_cur_freq == 0 ~ "cat0_never",
-    between(alc_cur_freq, 1, 3) ~ "cat1_1_3_per_month",
-    between(alc_cur_freq, 4, 5) ~ "cat2_1_3_per_week",
-    between(alc_cur_freq, 6, 7) ~ "cat3_4_or_more_per_week",
-    TRUE ~ NA_character_
-  ))
-temp1 %>% count(gp, alc_cur_freq_cat) %>% arrange(alc_cur_freq_cat, gp) %>% mutate(p=n/sum(n))
-
-
-
-
-
-
-# create new categories for binge drinking
-temp1 <- temp1 %>%
-  mutate(alc_binge_cat = case_when(
-    alc_binge_freq_female == 0 | alc_ever==0 ~ "cat0_never",
-    between(alc_binge_freq_female, 1, 2) ~ "cat1_1_11_per_year",
-    between(alc_binge_freq_female, 3, 4) ~ "cat2_1_3_per_month",
-    between(alc_binge_freq_female, 5, 6) ~ "cat3_1_or_more_per_week",
-    TRUE ~ NA_character_
-  ))
-
-
-
-# # calculate number of drinks per week
-# temp1 <- temp1 %>%
-#   mutate(alc_drink_per_week = rowSums(across(ends_with("week")), na.rm=TRUE))
-
-
-
-
-
-## ethnicity
-# create white/non-white categories for ethnicity
-temp1 <- temp1 %>%
-  mutate(ethnicity = coalesce(sdc_eb_white, !!!select(., starts_with("sdc_eb_"))))
-temp1 %>% count(ethnicity)
-
-
-# education levels
-temp1 <- temp1 %>%
-  mutate(edu_level = case_when(
-    sdc_edu_level %in% 1:2 ~ "1_high_school_or_less",
-    sdc_edu_level %in% 3:5 ~ "2_some_uni",
-    sdc_edu_level %in% 6:7 ~ "3_bachelor_or_more",
-    TRUE ~ NA_character_
-  ))
-temp1 %>% count(edu_level)
-
-
-# income level
-temp1 <- temp1 %>%
-  mutate(income_level = case_when(
-    sdc_income %in% 1:3 ~ "1_50k_or_less",
-    sdc_income %in% 4:5 ~ "2_50k_to_100k",
-    sdc_income %in% 6:8 ~ "3_100k_or_more",
-    TRUE ~ NA_character_
-  ))
-temp1 %>% count(income_level)
-
-
-
-
-
-
-# smoking
-
-## add smoking duration
-temp1 <- temp1 %>%
-  mutate(
-    smk_cig_dur = as.numeric(coalesce(
-        smk_cig_daily_cur_dur,
-        smk_cig_former_daily_dur,
-        smk_cig_heaviest_dur))) %>%
-  mutate(smk_cig_dur = ifelse(smk_cig_status==0, 0, smk_cig_dur)) %>%
-  mutate(smk_cig_dur_cat = case_when(
-    smk_cig_status==0 ~ "cat0_never_smk",
-    smk_cig_dur < 10 ~ "cat1_less_than_10_years",
-    between(smk_cig_dur, 10, 19) ~ "cat2_10_19_years",
-    smk_cig_dur>=20 ~ "cat5_20_years_or_more",
-    TRUE ~ NA_character_
-  ))
-
-
-# age at smoking initiation
-temp1 <- temp1 %>%
-  mutate(smk_first_age = coalesce(smk_cig_daily_cur_onset, smk_cig_former_daily_onset)) %>%
-  mutate(smk_first_age_cat = case_when(
-    smk_cig_status==0 ~ "cat0_never",
-    smk_first_age < 15 ~ "cat1_younger_than_15",
-    between(smk_first_age, 15, 19) ~ "cat2_15_to_19",
-    between(smk_first_age, 20, 24) ~ "cat3_20_to_24",
-    smk_first_age>=25 ~ "cat4_25_or_older",
-    TRUE ~ NA_character_
-  )
-  )
-
-# # age at smoking relative to menarche and pregnancy
-# temp1 <- temp1 %>%
-#   mutate(smk_before_first_preg = case_when(
-#     smk_cig_status==0 ~ "cat0_never",
-#     wh_gravidity==0 ~ "never_preg",
-#     smk_first_age < wh_preg_first_age ~ "before",
-#     smk_first_age >= wh_preg_first_age ~ "after",
-#     TRUE ~ NA_character_
-#   ))
-
-
-
-
-################
-
-# set menstruation categories
+# menstruation categories
 temp1 <- temp1 %>%
   mutate(wh_menstruation_age_cat=case_when(
     wh_menstruation_age<12 ~ "cat1_under_12",
     between(wh_menstruation_age, 12, 13) ~ "cat2_12_13",
     wh_menstruation_age>=14 ~ "cat3_14_or_older"
   ))
+
+
 
 # set live births to 0 if gravidity=0
 temp1 %>% count(wh_live_births)
@@ -538,19 +449,7 @@ temp1 %>% group_by(gp) %>% count(wh_preg_first_age_cat) %>%
 temp1 %>% count(wh_contraceptives_ever)
 # summary(temp1$wh_contraceptives_duration)
 
-# # set contraceptive duration to 0 if never used contraceptives
-# temp1 <- temp1 %>%
-#   mutate(wh_contraceptives_duration=ifelse(wh_contraceptives_ever==0, 0, wh_contraceptives_duration))
-# # don't need duration
 
-
-# impute menopause status for ATP and combine with BCGP
-temp1 <- temp1 %>%
-  mutate(ms_bc=ifelse(str_detect(menopause_status, "Post"), 1, 0),
-         ms_atp=ifelse(!is.na(wh_menopause_ever), wh_menopause_ever,
-                       ifelse(sdc_age_calc>=51, 1, 0))
-  ) %>%
-  mutate(menopause_stt = coalesce(ms_bc, ms_atp))
 
 
 # set hrt duration if never used HRT
@@ -593,8 +492,146 @@ temp1 <- temp1 %>%
 
 
 
-####################
-## Cancer descriptions
+
+
+
+
+
+
+#====================#
+## Lifestyle factors ####
+
+### BMI and BMI categories
+temp1 <- temp1 %>%
+  mutate(bmi=as.numeric(coalesce(pm_tanitabmi, pm_bioimped_bmi, pm_bmi_sr))) %>%
+  mutate(bmi_cat=factor(findInterval(bmi, c(18.5, 25, 30)),
+                        labels=c("underweight", "normal", "overweight", "obese")))
+temp1 %>% count(bmi_cat)
+summary(temp1$bmi)
+
+
+
+
+
+### alcohol consumption
+
+# if alc_ever=0, set alcohol frequency and binge frequency to 0
+temp1 <- temp1 %>%
+  mutate(alc_cur_freq = ifelse(alc_ever==0, 0, alc_cur_freq)) %>%
+  mutate(across(c(alc_binge_freq_female, ends_with("week")),
+                function(x) ifelse(alc_cur_freq==0, 0, x)))
+
+
+# create new categories for alcohol frequencies
+temp1 <- temp1 %>%
+  mutate(alc_cur_freq_cat = case_when(
+    alc_cur_freq == 0 ~ "cat0_never",
+    between(alc_cur_freq, 1, 3) ~ "cat1_1_3_per_month",
+    between(alc_cur_freq, 4, 5) ~ "cat2_1_3_per_week",
+    between(alc_cur_freq, 6, 7) ~ "cat3_4_or_more_per_week",
+    TRUE ~ NA_character_
+  ))
+temp1 %>% count(gp, alc_cur_freq_cat) %>% arrange(alc_cur_freq_cat, gp) %>% mutate(p=n/sum(n))
+
+
+
+
+# create new categories for binge drinking
+temp1 <- temp1 %>%
+  mutate(alc_binge_cat = case_when(
+    alc_binge_freq_female == 0 | alc_ever==0 ~ "cat0_never",
+    between(alc_binge_freq_female, 1, 2) ~ "cat1_1_11_per_year",
+    between(alc_binge_freq_female, 3, 4) ~ "cat2_1_3_per_month",
+    between(alc_binge_freq_female, 5, 8) ~ "cat3_1_or_more_per_week",
+    TRUE ~ NA_character_
+  ))
+
+
+
+# # calculate number of drinks per week
+# temp1 <- temp1 %>%
+#   mutate(alc_drink_per_week = rowSums(across(ends_with("week")), na.rm=TRUE))
+
+
+
+
+
+# smoking
+
+## add smoking duration
+temp1 <- temp1 %>%
+  mutate(
+    smk_cig_dur = as.numeric(coalesce(
+        smk_cig_daily_cur_dur,
+        smk_cig_former_daily_dur,
+        smk_cig_heaviest_dur))) %>%
+  mutate(smk_cig_dur = ifelse(smk_cig_status==0, 0, smk_cig_dur)) %>%
+  mutate(smk_cig_dur_cat = case_when(
+    smk_cig_status==0 ~ "cat0_never_smk",
+    smk_cig_dur < 10 ~ "cat1_less_than_10_years",
+    between(smk_cig_dur, 10, 19) ~ "cat2_10_19_years",
+    smk_cig_dur>=20 ~ "cat5_20_years_or_more",
+    TRUE ~ NA_character_
+  ))
+
+
+# age at smoking initiation
+temp1 <- temp1 %>%
+  mutate(smk_first_age = coalesce(smk_cig_daily_cur_onset, smk_cig_former_daily_onset)) %>%
+  mutate(smk_first_age_cat = case_when(
+    smk_cig_status==0 ~ "cat0_never",
+    smk_first_age < 15 ~ "cat1_younger_than_15",
+    between(smk_first_age, 15, 19) ~ "cat2_15_to_19",
+    between(smk_first_age, 20, 24) ~ "cat3_20_to_24",
+    smk_first_age>=25 ~ "cat4_25_or_older",
+    TRUE ~ NA_character_
+  )
+  )
+
+# # age at smoking relative to menarche and pregnancy
+# temp1 <- temp1 %>%
+#   mutate(smk_before_first_preg = case_when(
+#     smk_cig_status==0 ~ "cat0_never",
+#     wh_gravidity==0 ~ "never_preg",
+#     smk_first_age < wh_preg_first_age ~ "before",
+#     smk_first_age >= wh_preg_first_age ~ "after",
+#     TRUE ~ NA_character_
+#   ))
+
+
+
+
+
+
+
+
+
+
+
+
+
+#====================#
+## Cancer-specific variables ####
+
+
+# time from enrolment to diagnosis
+summary(temp1$age_at_diagnosis - temp1$sdc_age_calc)
+temp1 %>% filter(age_at_diagnosis<sdc_age_calc) %>% select(match_id)
+#2 cases were diagnosed before enrolment?!
+
+
+# molecular subtype
+temp1 <- temp1 %>%
+  mutate(hr_subtype=case_when(
+    er_status=="negative" & pr_status=="negative" & her2_status=="negative" ~ "triple_negative",
+    her2_status=="positive" ~ "her2_positive",
+    (er_status=="positive" | pr_status=="positive") ~ "hr_positive",
+    gp=='CNTL' ~ "control",
+    TRUE ~ NA_character_
+  ))
+temp1 %>% count(hr_subtype)
+
+
 
 # Combine topology variables
 # BCGP = site, site_desc; ATP = acr_icd_o_topography
@@ -623,7 +660,8 @@ temp1 %>% filter(cohort=="bcgp") %>% count(gp, hist1, hist1_desc)
 temp1 %>% filter(cohort=="atp") %>% count(gp, acr_icd_o_morphology)
 
 
-#
+
+# remove "/" from ATP morphology codes
 temp1 <- temp1 %>%
   mutate(
     hist_code = ifelse(
@@ -657,6 +695,7 @@ temp1 <- temp1 %>%
     )
   )
 
+temp1 %>% count(hist_subtype)
 
 
 
@@ -664,21 +703,25 @@ temp1 <- temp1 %>%
 
 
 
-#########################################################################
 
-# REMOVE INELIGIBLE PARTICIPANTS
+
+#=========================================================#
+
+# REMOVE INELIGIBLE PARTICIPANTS ####
 
 # Participant PB000429 was selected in error
 # 8 pairs had at least one participant with no baseline information
 # Pair of 210503833 and 210524604 bc one was selected as a control but is now a case
 # 3 pairs have cases with in-situ tumors instead of invasive
 # Pair of participant 210503316 because of mismatched information
+# 1 participant had a diagnosis before enrolment
 
 
 # find matching IDs of pairs to remove
 rm_pair <- temp1 %>%
   filter(studyid %in% c("210503833", "210524604", "210503316") |
-           str_detect(hist_code, "2$")) %>%
+           str_detect(hist_code, "2$") |
+           age_at_diagnosis < sdc_age_calc) %>%
   select(match_id) %>%
   inner_join(subset(temp1, select=c("match_id", "studyid", "hist_code")))
 
@@ -692,7 +735,10 @@ temp2 <- temp1 %>%
 
 dim(temp2)
 
-###############################################
+
+
+#=========================================================#
+# FINAL DATA SET ####
 
 full_dat <- temp2 %>%
   select(gp, studyid, match_id, cohort,
@@ -734,18 +780,15 @@ write_csv(full_dat, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing
 
 #======================================================================#
 #======================================================================#
-# load crosswalk between participant and sample IDs for ATP
+# CREATE SURVEY-METABOLOMICS CROSSWALK DATA ####
+
+
+## load crosswalk between participant and sample IDs for ATP
 atp_id_crosswalk <- read_xlsx(
   path="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Metabolomics/Full/Bhatti samples pulled and duplicate IDs 2023-06-02.xlsx",
   sheet="231Cs, 231Cntr w duplc"
 )
 names(atp_id_crosswalk)
-
-
-# 1. fix column names and remove the last column (blank column with one note only)
-# 2. remove leading 00s from barcode columns
-# 3. combine original and duplicated barcodes into one single column named "sampleid"
-# 4. mark columns with replicate barcodes as dup
 
 
 # 1. rename column "tube barcode of duplicate sent" to dup_barcode
@@ -815,6 +858,8 @@ id_cw <- rbind(atp_id_cw, bcgp_id_cw) %>%
   filter(!participantkey %in% rm_pair$studyid)
 head(id_cw)
 dim(id_cw)
+
+n_distinct(id_cw$participantkey) #1184 participants
 
 
 

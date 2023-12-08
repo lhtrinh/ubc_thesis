@@ -210,13 +210,13 @@ dat_nonorm_pca <- dat_nonorm %>% select(starts_with("ion"))
 pca_nonorm <- prcomp(dat_nonorm_pca)
 
 # plot by plate 11 vs other plates
-fviz_pca_ind(pca_nonorm,
-             axes = c(1,2),
-             label="none",
-             alpha=.5,
-             habillage =  dat_nonorm$plate11_yn,
-             palette=c("blue", "red"),
-             addEllipses = TRUE)
+# fviz_pca_ind(pca_nonorm,
+#              axes = c(1,2),
+#              label="none",
+#              alpha=.5,
+#              habillage =  dat_nonorm$plate11_yn,
+#              palette=c("blue", "red"),
+#              addEllipses = TRUE)
 
 # plot by plate
 fviz_pca_ind(pca_nonorm,
@@ -811,7 +811,7 @@ dat_nonorm_rle <- nonorm_samp %>%
 
 dat_nonorm_rle %>%
   ggplot()+
-  geom_boxplot(aes(tubeid, value, fill=cohort), outlier.size=.01) +
+  geom_boxplot(aes(tubeid, value, fill=cohort), outlier.size=.001) +
   geom_hline(yintercept=0) +
   ylim(-20000, 20000) +
   labs(x="sample", y="relative log expression") +

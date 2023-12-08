@@ -8,13 +8,7 @@ source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
 
 
 # load full questionnaire data
-full_dat <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
-
-full_dat <- full_dat %>%
-  mutate(across(all_of(fct_cols),
-                as.factor)) %>%
-  mutate(across(all_of(int_cols),
-                as.integer))
+full_dat <- import_survey()
 
 
 
@@ -33,25 +27,16 @@ full_dat %>% group_by(gp) %>% count(cohort) %>% mutate(p=n/sum(n))
 # summary for numerical variables
 # mean, SD, and count of missing
 full_num_summ <- full_dat %>%
-  group_by(gp) %>%
-  summarise(across(
-    all_of(num_cols),
-    c(avg=function(x) round(mean(x, na.rm=TRUE), 1),
-           sd=function(x) round(sd(x, na.rm=TRUE), 1),
-           nmiss=function(x) round(sum(is.na(x)), 1)))) %>%
+  select(gp, all_of(num_cols)) %>%
   pivot_longer(-gp, names_to="var") %>%
+  group_by(gp, var) %>%
+  summarize(mean=round(mean(value, na.rm=TRUE), 1),
+            sd=round(sd(value, na.rm=TRUE), 1),
+            nmiss=round(sum(is.na(value)), 1)) %>%
   arrange(var, gp)
 View(full_num_summ)
 
-# # for parous women only
-# full_dat %>% filter(wh_gravidity>0) %>%
-#   group_by(gp) %>%
-#   summarise(across(c(wh_preg_first_age, wh_live_births, wh_breastfeeding_duration),
-#                    c(avg=function(x) round(mean(x, na.rm=TRUE), 1),
-#                      sd=function(x) round(sd(x, na.rm=TRUE), 1),
-#                      nmiss=function(x) round(sum(is.na(x)), 1)))) %>%
-#   pivot_longer(-gp, names_to="var") %>%
-#   arrange(var, gp)
+
 
 
 #=================================================================#

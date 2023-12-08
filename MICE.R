@@ -31,8 +31,10 @@ pre_imp_id <- full_all %>% select(-all_of(imp_cols))
 n_imp <- 10
 imp <- futuremice(pre_imp,
              m=n_imp,
-             maxit=10,
+             maxit=30,
              parallelseed = 292920)
+
+plot(imp, layout=c(5,5))
 
 
 # record all imputed data sets
