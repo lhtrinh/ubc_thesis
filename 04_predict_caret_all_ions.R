@@ -42,29 +42,15 @@ sig_ions_0.2 <- all_pvals$metabolite[all_pvals$q_fdr<=0.2]
 
 
 
-## Impute data
-# path <- Sys.glob("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Bootstrapped_data/*.csv")
-# boot_list_import <- import_list(path)
-#
-#
-#
-#
-# for (i in 1:length(boot_list_import)){
-#   boot_list_import[[i]][boot_list_import[[i]]==""] <- NA
-#   boot_list_import[[i]][fct_cols] <- lapply(boot_list_import[[i]][fct_cols], as.factor)
-#   boot_list_import[[i]][int_cols] <- lapply(boot_list_import[[i]][int_cols], as.integer)
-# }
-#
-# full_imp <- boot_list_import
-
 
 #=============================#
 ## Assign modeling and holdout set ####
 
 
 
-my_df <- full_imp[[1]] %>%
-  select(gp, all_of(c(id_cols, context_cols, sig_ions_0.2, match_cols)))
+my_df <- full_all %>%
+  select(gp, studyid, match_id, starts_with("ion"))
+names(my_df)
 
 
 # Randomly sample by match ID
@@ -78,6 +64,7 @@ trainMatchId <- sample(matchIds, length(matchIds)*.8, replace = FALSE)
 # Split data training (90%) and validation (10%) sets
 model_dat <- my_df %>% filter(match_id %in% trainMatchId) %>% select(-studyid, -match_id)
 holdout_dat <- my_df %>% filter(!match_id %in% trainMatchId) %>% select(-studyid, -match_id)
+
 #=============================#
 
 
@@ -101,7 +88,8 @@ ctrl <- trainControl(
   number=n_fold,
   classProbs = TRUE,
   summaryFunction = twoClassSummary,
-  indexOut = ctrlIndexOut
+  indexOut = ctrlIndexOut,
+  savePredictions = TRUE
 )
 #=============================#
 
@@ -124,7 +112,18 @@ lasso_train <- train(gp~.,
                      trControl=ctrl,
                      tuneGrid=lasso_grid,
                      metric="ROC")
-lasso_train$results
+
+# extract fold results
+lasso_train$results %>%
+  filter(lambda==lasso_train$bestTune$lambda)
+
+
+lasso_train$bestTune
+
+
+
+
+#===============================================================#
 
 
 # Predict on holdout test set
@@ -147,7 +146,11 @@ specificity(pred_label, true_label)
 posPredValue(factor(pred_label), factor(true_label))
 
 
-#=============================#
+
+
+
+
+#=============================================================#
 ## Random forest ####
 rf_grid <- expand.grid(.mtry=1:15)
 
@@ -157,9 +160,19 @@ rf_train <- train(gp~.,
                   trControl=ctrl,
                   tuneGrid=rf_grid,
                   metric="ROC")
-rf_train
 
 
+# extract fold results
+rf_train$results %>%
+  filter(mtry==rf_train$bestTune$mtry)
+
+
+rf_train$bestTune
+
+
+
+
+#=============================#
 # Predict on holdout test set
 test <- predict(rf_train, newdata=holdout_dat, type="prob")
 pred_prob <- test$CASE
@@ -180,7 +193,10 @@ posPredValue(factor(pred_label), factor(true_label))
 
 
 
-#=============================#
+
+
+
+#=============================================================#
 ## Partial least squares ####
 plsda_train <- train(gp~.,
                      data=model_dat,

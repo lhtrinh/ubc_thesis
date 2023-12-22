@@ -81,12 +81,18 @@ bc_raw4 <- bc_raw3 %>%
 
 
 
-bc_dat <- bc_raw4
+# !!! one patient had the wrong age
+# participant PB000321's age is 52, but written as 62
+bc_raw5 <- bc_raw4 %>%
+  mutate(sdc_age_calc=ifelse(studyid=="PB000321", 52, sdc_age_calc))
+bc_raw5$sdc_age_calc[temp2$studyid=="PB000321"]
+
+
+bc_dat <- bc_raw5
 
 
 dim(bc_dat)
 n_distinct(bc_dat$match_id)
-
 
 
 
@@ -714,22 +720,28 @@ temp1 %>% count(hist_subtype)
 # Pair of 210503833 and 210524604 bc one was selected as a control but is now a case
 # 3 pairs have cases with in-situ tumors instead of invasive
 # Pair of participant 210503316 because of mismatched information
-# 1 participant had a diagnosis before enrolment
+# 1 participant had incorrect enrolment age
 
 
 # find matching IDs of pairs to remove
 rm_pair <- temp1 %>%
   filter(studyid %in% c("210503833", "210524604", "210503316") |
-           str_detect(hist_code, "2$") |
-           age_at_diagnosis < sdc_age_calc) %>%
+           str_detect(hist_code, "2$")) %>%
   select(match_id) %>%
   inner_join(subset(temp1, select=c("match_id", "studyid", "hist_code")))
 
 rm_pair
 
+
+
+# filter out pairs
+
 temp2 <- temp1 %>%
   filter(studyid!="PB000429" &
            !match_id %in% rm_pair$match_id)
+
+
+
 
 
 

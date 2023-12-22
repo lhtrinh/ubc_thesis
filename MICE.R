@@ -29,12 +29,13 @@ pre_imp_id <- full_all %>% select(-all_of(imp_cols))
 
 # imputation (use futuremice function for parallel processing, speed up the process)
 n_imp <- 10
+n_iter <- 30
 imp <- futuremice(pre_imp,
              m=n_imp,
-             maxit=30,
+             maxit=n_iter,
              parallelseed = 292920)
 
-plot(imp, layout=c(5,5))
+# plot(imp, layout=c(5,5))
 
 
 # record all imputed data sets
@@ -44,6 +45,9 @@ post_imp <- complete(imp, action="all")
 full_imp <- lapply(post_imp, function(dat) cbind(pre_imp_id, dat))
 
 
+
+rm(imp)
+rm(post_imp)
 export_list(full_imp, file="C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Bootstrapped_data/imp_list_%s.csv")
 
 
