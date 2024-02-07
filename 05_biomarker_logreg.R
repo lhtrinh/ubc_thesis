@@ -5,6 +5,7 @@ library(tidyverse)
 library(foreach)
 library(doParallel)
 library(rio)
+library(mice)
 
 
 
@@ -19,6 +20,9 @@ full_meta <- import_meta_sc()
 
 full_all <- full_dat %>% full_join(full_meta)
 
+
+
+full_imp <- import_imp()
 
 
 #=======================================================================#
@@ -56,8 +60,6 @@ unadj_logreg <- function(dat){
                  ci_ub=ci_ub,
                  pval=pval)
     }
-
-  # lr_out_df <- as.data.frame(lr_out)
   }
 
 
@@ -77,49 +79,8 @@ head(all_pvals)
 
 
 
-#===================================#
-### Manual calculation for BH correction ####
 
 
-pvals <- all_pvals %>% select(metabolite, pval)
-
-# pvalues <- pvals$pval
-
-
-# assign variables to calculate critical value
-ranks <- rank(pvals$pval, ties.method = "last")
-m <- length(pvals$pval)
-Q <- 0.1
-
-# calculate critical value
-critical_val <- (ranks/m)*Q
-all_pvals$critical_val <- critical_val
-
-
-
-# check: how many p-values are smaller than their critical values?
-which(pvals$pval<critical_val)
-
-# find the largest pvalue that is smaller than its critical value
-largest_pval <- max(pvals$pval[pvals$pval<critical_val])
-
-# how many are there?
-length(pvals$pval[pvals$pval<=largest_pval])
-
-pvals[pvals$pval<=largest_pval,]
-critical_val[pvals$pval<=largest_pval]
-
-#===================================#
-
-
-
-
-
-
-
-sig_ions_df <- all_pvals %>%
-  filter(pval<=largest_pval) %>%
-  arrange(beta_unadj)
 
 
 
@@ -144,14 +105,14 @@ table(all_pvals$q_fdr<=0.1)
 
 
 
-sig_ions_all <- all_pvals %>%
+sig_ions_df <- all_pvals %>%
   filter(q_fdr<=0.1) %>%
   arrange(beta_unadj)
 
-sig_ions_0.1 <- sig_ions_all$metabolite
+sig_ions_0.1 <- sig_ions_df$metabolite
 nonsig_ions_0.1 <- all_pvals$metabolite[all_pvals$q_fdr>0.1]
 
-sig_ions_all
+# sig_ions_df
 
 
 
@@ -163,23 +124,31 @@ sig_ions_0.2 <- all_pvals$metabolite[all_pvals$q_fdr>0.2]
 
 
 # save data for significant metabolites at fdr 0.1
-write_csv(sig_ions_all,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_df.csv")
+write_csv(sig_ions_df,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions.csv")
+
+
+names(ion_cols) <- ion_cols
+ion_cols <- as.list(ion_cols)
+
+
+
+
 
 #=======================================================================#
 ## Adjust for each contextual variables ####
 
 
 # full_imp <- import_list("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Bootstrapped_data/imp_list_%s.csv")
-
-ion_cols <- sig_ions_all$metabolite
+ion_cols <- sig_ions_df$metabolite
 names(ion_cols) <- ion_cols
 ion_cols <- as.list(ion_cols)
 
 
+
 n_imp <- 10
 
-imp_glm_sep <- function(ion) {
+imp_glm_sep_full <- function(ion) {
   dfs <- foreach(var=context_cols, .combine="rbind", .verbose=TRUE) %:%
     foreach(i=1:n_imp, .combine="rbind", .verbose=TRUE) %do% {
       cols_ <- c(y_col, match_cols, var, ion)
@@ -192,40 +161,39 @@ imp_glm_sep <- function(ion) {
       coef <- lr_coef[rownames(lr_coef)==ion, 1]
       pval <- lr_coef[rownames(lr_coef)==ion, 4]
 
-      data.frame(metabolite=ion, context_var=var, beta_adj=coef, pval=pval)
+      data.frame(metabolite=ion, context_var=var, beta_adj=coef, pval_adj=pval)
     }
 }
 
 
 
+bio_all <- lapply(ion_cols, imp_glm_sep_full) %>% bind_rows
 
-dfs <- lapply(ion_cols, imp_glm_sep)
-bio_df <- dfs %>% bind_rows %>% rename(beta_adj=beta_unadj, pval_adj=pval)
 
-bio_df_comb <- test2 %>%
+bio_all_comb <- bio_all %>%
   full_join(sig_ions_df) %>%
   mutate(or_adj=exp(beta_adj),
          or_unadj=exp(beta_unadj)) %>%
   mutate(beta_change=1-beta_adj/beta_unadj,
          or_change = 1-or_adj/or_unadj)
 
-head(bio_df_comb)
+head(bio_all_comb)
 
 
-summary(bio_df_comb$beta_change)
-summary(bio_df_comb$or_change)
+summary(bio_all_comb$beta_change)
+summary(bio_all_comb$or_change)
 
 
 # how many are significant confounders?
-bio_df_comb %>% count(abs(beta_change)>=0.1 | abs(or_change)>=0.1)
+bio_all_comb %>% count(abs(beta_change)>=0.1 | abs(or_change)>=0.1)
 
 
 
-write_csv(bio_df_comb,
+write_csv(bio_all_comb,
           file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_single_var.csv")
 
 
-# bio_df_comb <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_single_var.csv")
+# bio_all_comb <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_single_var.csv")
 
 
 
@@ -240,7 +208,7 @@ write_csv(bio_df_comb,
 ### point plots ####
 
 # try on one metabolite
-bio_df_comb %>%
+bio_all_comb %>%
   filter(metabolite=="ion_63") %>%
   ggplot()+
   geom_point(aes(context_var, beta_change)) +
@@ -253,7 +221,7 @@ bio_df_comb %>%
 
 
 # point plots for all metabolites
-bio_df_comb %>%
+bio_all_comb %>%
   mutate(metabolite=fct_reorder(metabolite, beta_unadj)) %>%
   ggplot()+
   geom_point(aes(context_var, or_change), size=.8) +
@@ -273,7 +241,7 @@ bio_df_comb %>%
 ### boxplots ####
 
 
-bio_df_comb %>%
+bio_all_comb %>%
   mutate(metabolite=fct_reorder(metabolite, beta_unadj)) %>%
   ggplot()+
   geom_boxplot(aes(metabolite, or_change)) +
@@ -303,8 +271,9 @@ bio_df_comb %>%
 ## Adjust for ALL contextual variables ####
 
 # select list of significant metabolites
-ion_cols <- as.list(sig_ions_0.1)
-names(ion_cols) <- sig_ions_0.1
+ion_cols <- sig_ions_df$metabolite
+names(ion_cols) <- ion_cols
+ion_cols <- as.list(ion_cols)
 
 
 imp_glm_all <- function(ion) {
@@ -328,29 +297,35 @@ pool_adj_all <- lapply(lr_adj_all, function(x) summary(pool(x), conf.int=TRUE))
 
 # select pooled results for metabolites only
 pool_adj_ion <- lapply(pool_adj_all, function(x) x[grepl("^ion", x$term),]) %>%
-  bind_rows()
+  bind_rows
 
 head(pool_adj_ion)
 
 
 
 bio_comb_all <- pool_adj_ion %>%
-  rename(metabolite=term,
-         beta_adj=estimate) %>%
-  full_join(sig_ions_df) %>%
+  full_join(sig_ions_df,
+            by=join_by(term==metabolite),
+            keep=TRUE) %>%
   mutate(or_unadj=exp(beta_unadj),
-         or_adj=exp(beta_adj)) %>%
+         or_adj=exp(estimate)) %>%
   mutate(or_change = 1-or_adj/or_unadj)
 
 bio_comb_all %>% filter(abs(or_change)>=.1)
 
 
 bio_comb_all %>%
-  mutate(or_adj=round(or_adj,2),
-         lb_adj=round(exp(`2.5 %`),2),
-         ub_adj=round(exp(`97.5 %`),2)) %>%
-  mutate(str_ = paste(or_adj, " (", lb_adj, "-", ub_adj, ")", sep="")) %>%
-  select(metabolite, str_)
+  mutate(
+    or_unadj=round(exp(beta_unadj),2),
+    lb_unadj=round(exp(ci_lb),2),
+    ub_unadj=round(exp(ci_ub),2),
+    or_adj=round(exp(estimate),2),
+    lb_adj=round(exp(`2.5 %`),2),
+    ub_adj=round(exp(`97.5 %`),2)) %>%
+  mutate(
+    unadj=paste(or_unadj, "(", lb_unadj, "-", ub_unadj, ")", sep=""),
+    adj = paste(or_adj, "(", lb_adj, "-", ub_adj, ")", sep="")) %>%
+  select(metabolite, unadj, adj)
 
 
 
@@ -363,4 +338,14 @@ write_csv(bio_comb_all, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logr
 
 
 
+bio_comb_all %>%
+  mutate(lb_unadj=exp(ci_lb),
+         ub_unadj=exp(ci_ub),
+         lb_adj=exp(`2.5 %`),
+         ub_adj=exp(`97.5 %`)) %>%
+  mutate(across(c(ends_with("unadj"), ends_with("adj")), function(x) round(x,2))) %>%
+  mutate(ion=term,
+         term_unadj=paste(or_unadj, "(", lb_unadj, "-", ub_unadj, ")", sep=""),
+         term_adj=paste(or_adj, "(", lb_adj, "-", ub_adj, ")", sep="")) %>%
+  select(ion, term_unadj, term_adj)
 

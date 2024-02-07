@@ -21,6 +21,13 @@ full_all <- full_dat %>% full_join(full_meta)
 
 
 
+
+
+# import imputed data (with metabolites)
+full_imp <- import_imp()
+
+
+
 #=======================================================================#
 ## Adjust only for matching factors ####
 
@@ -36,6 +43,7 @@ unadj_logreg <- function(dat){
       # create data set with only required column names
       # (vectors of column names defined in "00_functions.R")
       cols_ <- c(y_col, match_cols, ion)
+
       lr_dat <- dat[,colnames(dat) %in% cols_]
 
       # fit logistic regression model
@@ -56,8 +64,6 @@ unadj_logreg <- function(dat){
                  ci_ub=ci_ub,
                  pval=pval)
     }
-
-  # lr_out_df <- as.data.frame(lr_out)
 }
 
 
@@ -69,132 +75,84 @@ erpr_match_id <- full_all$match_id[full_all$er_status=="positive" | full_all$pr_
 full_erpr <- full_all %>% filter(match_id %in% erpr_match_id)
 
 
-hrpr_pvals <- unadj_logreg(full_hrpr)
+erpr_pvals <- unadj_logreg(full_erpr)
+head(erpr_pvals)
 
 
 #===================================#
 ### Correction for multiple testing ####
-hrpr_pvals$q_fdr <- p.adjust(hrpr_pvals$pval, method="fdr")
-head(hrpr_pvals)
+erpr_pvals$q_fdr <- p.adjust(erpr_pvals$pval, method="fdr")
+head(erpr_pvals)
+
+
+
+
+write_csv(erpr_pvals,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/erpr_pvals.csv")
+
 
 
 
 #===================================#
-### Manual calculation for BH correction ####
+# erpr_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/erpr_pvals.csv")
+
+summary(erpr_pvals)
+summary(erpr_pvals$q_fdr)
 
 
-pvals <- hrpr_pvals %>% select(metabolite, pval)
-
-# pvalues <- pvals$pval
-
-
-# assign variables to calculate critical value
-ranks <- rank(pvals$pval, ties.method = "last")
-m <- length(pvals$pval)
-Q <- 0.1
-
-# calculate critical value
-critical_val <- (ranks/m)*Q
-hrpr_pvals$critical_val <- critical_val
-
-
-
-# check: how many p-values are smaller than their critical values?
-which(pvals$pval<critical_val)
-
-# find the largest pvalue that is smaller than its critical value
-largest_pval <- max(pvals$pval[pvals$pval<critical_val])
-
-# how many are there?
-length(pvals$pval[pvals$pval<=largest_pval])
-
-pvals[pvals$pval<=largest_pval,]
-critical_val[pvals$pval<=largest_pval]
-
-#===================================#
+table(erpr_pvals$q_fdr<=0.1)
 
 
 
 
-
-
-
-sig_ions_hrpr <- hrpr_pvals %>%
-  filter(pval<=largest_pval) %>%
-  arrange(beta_unadj)
-
-
-
-
-
-write_csv(hrpr_pvals,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/hrpr_pvals.csv")
-
-
-
-x_hrpr <- sig_ions_hrpr %>%
-  mutate(across(c(beta_unadj, ci_lb, ci_ub), function(x) round(exp(x), 2))) %>%
-  mutate(or_hrpr = paste(beta_unadj, " (", ci_lb, "-", ci_ub, ")", sep="")) %>%
-  select(metabolite,or_hrpr)
-
-x_hrpr
-
-write_csv(x_hrpr, file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Output/x_hrpr.csv")
-
-
-
-#===================================#
-# hrpr_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/hrpr_pvals.csv")
-
-summary(hrpr_pvals)
-summary(hrpr_pvals$q_fdr)
-
-table(hrpr_pvals$q_fdr<=0.2)
-table(hrpr_pvals$q_fdr<=0.1)
-
-
-
-
-sig_ions_all <- hrpr_pvals %>%
+sig_ions_erpr <- erpr_pvals %>%
   filter(q_fdr<=0.1) %>%
   arrange(beta_unadj)
 
-sig_ions_0.1 <- sig_ions_all$metabolite
-nonsig_ions_0.1 <- hrpr_pvals$metabolite[hrpr_pvals$q_fdr>0.1]
 
-sig_ions_all
+sig_ions_erpr
 
 
-
-
-
-# record all vars for FDR level 0.2
-sig_ions_0.2 <- hrpr_pvals$metabolite[hrpr_pvals$q_fdr>0.2]
 
 
 
 # save data for significant metabolites at fdr 0.1
-write_csv(sig_ions_all,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_df.csv")
+write_csv(sig_ions_erpr,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_erpr.csv")
+
+
+sig_ions_erpr <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_erpr.csv")
+
+
+
+# format for reporting
+sig_ions_erpr %>%
+  mutate(or_unadj=round(exp(beta_unadj),2),
+         across(c(ci_lb, ci_ub), function(x) round(exp(x), 2)),
+         across(c(pval, q_fdr), function(x) round(x,3))) %>%
+  mutate(txt=paste(or_unadj, "(", ci_lb, "-", ci_ub, ")", sep="")) %>%
+  select(metabolite, txt, pval, q_fdr)
+
+
 
 #=======================================================================#
 ## Adjust for each contextual variables ####
-
-
-# full_imp <- import_list("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Bootstrapped_data/imp_list_%s.csv")
-
-ion_cols <- sig_ions_all$metabolite
-names(ion_cols) <- ion_cols
-ion_cols <- as.list(ion_cols)
-
-
+ion_cols_erpr <- sig_ions_erpr$metabolite
+names(ion_cols_erpr) <- ion_cols_erpr
+ion_cols_erpr <- as.list(ion_cols_erpr)
+ion_cols_erpr
 n_imp <- 10
 
-imp_glm_sep <- function(ion) {
+
+
+
+imp_glm_sep_erpr <- function(ion) {
   dfs <- foreach(var=context_cols, .combine="rbind", .verbose=TRUE) %:%
     foreach(i=1:n_imp, .combine="rbind", .verbose=TRUE) %do% {
       cols_ <- c(y_col, match_cols, var, ion)
       dat <- full_imp[[i]]
+
+      dat_erpr <- dat[dat$match_id %in% dat$match_id[dat$er_status=="positive"|dat$pr_status=="positive"],]
 
       lr_dat <- dat[,colnames(dat) %in% cols_]
       lr_fit <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
@@ -203,37 +161,52 @@ imp_glm_sep <- function(ion) {
       coef <- lr_coef[rownames(lr_coef)==ion, 1]
       pval <- lr_coef[rownames(lr_coef)==ion, 4]
 
-      data.frame(metabolite=ion, context_var=var, beta_adj=coef, pval=pval)
+      data.frame(metabolite=ion, context_var=var, beta_adj=coef, pval_adj=pval)
     }
 }
 
 
 
+bio_erpr <- lapply(ion_cols_erpr, imp_glm_sep_erpr) %>% bind_rows
 
-dfs <- lapply(ion_cols, imp_glm_sep)
-bio_df <- dfs %>% bind_rows %>% rename(beta_adj=beta_unadj, pval_adj=pval)
-
-bio_df_comb <- test2 %>%
-  full_join(sig_ions_df) %>%
+bio_erpr_comb <- bio_erpr %>%
+  full_join(sig_ions_erpr) %>%
   mutate(or_adj=exp(beta_adj),
          or_unadj=exp(beta_unadj)) %>%
   mutate(beta_change=1-beta_adj/beta_unadj,
          or_change = 1-or_adj/or_unadj)
 
-head(bio_df_comb)
+head(bio_erpr_comb)
 
 
-summary(bio_df_comb$beta_change)
-summary(bio_df_comb$or_change)
+summary(bio_erpr_comb$beta_change)
+summary(bio_erpr_comb$or_change)
+
 
 
 # how many are significant confounders?
-bio_df_comb %>% count(abs(beta_change)>=0.1 | abs(or_change)>=0.1)
+bio_erpr_comb %>% filter(abs(or_change)>=0.1) %>% count(metabolite)
 
 
 
-write_csv(bio_df_comb,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_single_var.csv")
+# calculate average change in OR
+bio_erpr_comb_avg <- bio_erpr_comb %>%
+  group_by(metabolite, context_var) %>%
+  summarise(or_change_avg=mean(or_change)) %>%
+  ungroup()
+
+# filter variables that changed ORs by more than 10%
+sig_ion_change_10pct <- bio_erpr_comb_avg %>%
+  filter(abs(or_change_avg)>=.1)
+
+
+sig_ion_change_10pct %>% count(metabolite) %>% as.data.frame()
+
+
+
+
+# write_csv(bio_df_comb,
+#           file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_single_var.csv")
 
 
 # bio_df_comb <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_single_var.csv")
@@ -314,12 +287,18 @@ bio_df_comb %>%
 ## Adjust for ALL contextual variables ####
 
 # select list of significant metabolites
-ion_cols <- as.list(sig_ions_0.1)
-names(ion_cols) <- sig_ions_0.1
+ion_cols_erpr <- unique(sig_ion_change_10pct$metabolite)
+names(ion_cols_erpr) <- ion_cols_erpr
+ion_cols_erpr <- as.list(ion_cols_erpr)
+ion_cols_erpr
 
-
+# function to run through all significant confounders
 imp_glm_all <- function(ion) {
+
   # select columns for logistic fit
+  sig_context_cols <- sig_ion_change_10pct$context_var[
+    sig_ion_change_10pct$metabolite==ion]
+
   cols_ <- c(y_col, match_cols, context_cols, ion)
 
   # for each ion, run separate glm models on imputed data
@@ -331,41 +310,53 @@ imp_glm_all <- function(ion) {
   )
 }
 
+
+
+
 # run all glm models on list of metabolites
-lr_adj_all <- lapply(ion_cols, imp_glm_all)
+lr_adj_all <- lapply(ion_cols_erpr, imp_glm_all)
 
 # pool all results
 pool_adj_all <- lapply(lr_adj_all, function(x) summary(pool(x), conf.int=TRUE))
 
 # select pooled results for metabolites only
 pool_adj_ion <- lapply(pool_adj_all, function(x) x[grepl("^ion", x$term),]) %>%
-  bind_rows()
-
+  bind_rows %>%
+  full_join(sig_ions_erpr,
+            by=join_by(term==metabolite),
+            keep=TRUE) %>%
+  arrange(beta_unadj)
 head(pool_adj_ion)
 
 
 
-bio_comb_all <- pool_adj_ion %>%
-  rename(metabolite=term,
-         beta_adj=estimate) %>%
-  full_join(sig_ions_df) %>%
-  mutate(or_unadj=exp(beta_unadj),
-         or_adj=exp(beta_adj)) %>%
-  mutate(or_change = 1-or_adj/or_unadj)
+# select pooled results for metabolites only
+# also exponentiate coefficient and 95% estimates
+pool_adj_ion %>%
+  mutate(
+    or_unadj=exp(beta_unadj),
+    lb_unadj=exp(ci_lb),
+    ub_unadj=exp(ci_ub),
+    or_adj=exp(estimate),
+    lb_adj=exp(`2.5 %`),
+    ub_adj=exp(`97.5 %`)) %>%
+  mutate(across(ends_with("adj"), function(x) round(x,2))) %>%
+  mutate(unadj=paste(or_unadj,"(",lb_unadj,"-",ub_unadj,")", sep=""),
+         adj=paste(or_adj,"(",lb_adj,"-",ub_adj,")",sep="")) %>%
+  select(metabolite, unadj, adj)
 
-bio_comb_all %>% filter(abs(or_change)>=.1)
+pool_adj_ion
 
 
-bio_comb_all %>%
-  mutate(or_adj=round(or_adj,2),
-         lb_adj=round(exp(`2.5 %`),2),
-         ub_adj=round(exp(`97.5 %`),2)) %>%
-  mutate(str_ = paste(or_adj, " (", lb_adj, "-", ub_adj, ")", sep="")) %>%
+
+
+pool_adj_ion %>%
+  mutate(across(c(or_adj, ci_lb, ci_ub), function(x) round(x,2))) %>%
+  rename(metabolite=term) %>%
+  mutate(str_ = paste(or_adj, " (", ci_lb, "-", ci_ub, ")", sep="")) %>%
   select(metabolite, str_)
 
 
-
-bio_comb_all %>% filter(abs(beta_change)>=0.1)
 
 
 

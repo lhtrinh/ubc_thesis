@@ -67,18 +67,18 @@ unadj_logreg <- function(dat){
 
 #===================================#
 ### Apply on full data set ####
-ductal_match_id <- full_all$match_id[full_all$hist_subtype=="ductal"]
-full_ductal <- full_all %>% filter(match_id %in% ductal_match_id)
+match_id_5yr <- full_all$match_id[full_all$age_at_diagnosis - full_all$sdc_age_calc<=5]
+full_5yr <- full_all %>% filter(match_id %in% match_id_5yr)
 
 
-ductal_pvals <- unadj_logreg(full_ductal)
-head(ductal_pvals)
+pvals_5yr <- unadj_logreg(full_5yr)
+head(pvals_5yr)
 
 
 #===================================#
 ### Correction for multiple testing ####
-ductal_pvals$q_fdr <- p.adjust(ductal_pvals$pval, method="fdr")
-head(ductal_pvals)
+pvals_5yr$q_fdr <- p.adjust(pvals_5yr$pval, method="fdr")
+head(pvals_5yr)
 
 
 
@@ -87,8 +87,8 @@ head(ductal_pvals)
 
 
 
-write_csv(ductal_pvals,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ductal_pvals.csv")
+write_csv(pvals_5yr,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/pvals_5yr.csv")
 
 
 
@@ -104,30 +104,30 @@ write_csv(ductal_pvals,
 
 
 #===================================#
-# ductal_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ductal_pvals.csv")
+# pvals_5yr <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/pvals_5yr.csv")
 
-summary(ductal_pvals)
-summary(ductal_pvals$q_fdr)
+summary(pvals_5yr)
+summary(pvals_5yr$q_fdr)
 
-table(ductal_pvals$q_fdr<=0.2)
-table(ductal_pvals$q_fdr<=0.1)
+table(pvals_5yr$q_fdr<=0.2)
+table(pvals_5yr$q_fdr<=0.1)
 
 
 
 # extract all signficant metabolites (q<=0.1)
-sig_ions_ductal <- ductal_pvals %>%
+sig_ions_5yr <- pvals_5yr %>%
   filter(q_fdr<=0.1) %>%
   arrange(beta_unadj)
 
-sig_ions_ductal
+sig_ions_5yr
 
 
-write_csv(sig_ions_ductal, file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_ductal.csv")
+write_csv(sig_ions_5yr, file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_5yr.csv")
 
 
 
 # create OR tables for reporting
-sig_ions_ductal %>%
+sig_ions_5yr %>%
   mutate(or_unadj=round(exp(beta_unadj),2),
          across(c(ci_lb, ci_ub), function(x) round(exp(x), 2)),
          across(c(pval, q_fdr), function(x) round(x,3))) %>%
@@ -141,23 +141,27 @@ sig_ions_ductal %>%
 #=======================================================================#
 ## Adjust for each contextual variables ####
 
-ion_cols_duct <- sig_ions_ductal$metabolite
-names(ion_cols_duct) <- ion_cols_duct
-ion_cols_duct <- as.list(ion_cols_duct)
+# sig_ions_5yr <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_5yr.csv")
+
+ion_cols_5yr <- sig_ions_5yr$metabolite
+names(ion_cols_5yr) <- ion_cols_5yr
+ion_cols_5yr <- as.list(ion_cols_5yr)
+ion_cols_5yr
+
 n_imp <- 10
 
 
 
 
-imp_glm_sep_duct <- function(ion) {
+imp_glm_sep_5yr <- function(ion) {
   dfs <- foreach(var=context_cols, .combine="rbind", .verbose=TRUE) %:%
     foreach(i=1:n_imp, .combine="rbind", .verbose=TRUE) %do% {
       cols_ <- c(y_col, match_cols, var, ion)
       dat <- full_imp[[i]]
 
-      dat_duct <- dat[dat$match_id %in% dat$match_id[dat$hist_subtype=="ductal"],]
+      dat_5yr <- dat[dat$match_id %in% dat$match_id[dat$age_at_diagnosis-dat$sdc_age_calc<=5],]
 
-      lr_dat <- dat_duct[,colnames(dat_duct) %in% cols_]
+      lr_dat <- dat_5yr[,colnames(dat_5yr) %in% cols_]
       lr_fit <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
       lr_coef <- summary(lr_fit)$coefficients
 
@@ -171,31 +175,31 @@ imp_glm_sep_duct <- function(ion) {
 
 
 
-bio_duct <- lapply(ion_cols_duct, imp_glm_sep_duct) %>% bind_rows
+bio_5yr <- lapply(ion_cols_5yr, imp_glm_sep_5yr) %>% bind_rows
 
-bio_duct_comb <- bio_duct %>%
-  full_join(sig_ions_ductal) %>%
+bio_5yr_comb <- bio_5yr %>%
+  full_join(sig_ions_5yr) %>%
   mutate(or_adj=exp(beta_adj),
          or_unadj=exp(beta_unadj)) %>%
   mutate(beta_change=1-beta_adj/beta_unadj,
          or_change = 1-or_adj/or_unadj)
 
-head(bio_duct_comb)
+head(bio_5yr_comb)
 
 
-summary(bio_duct_comb$beta_change)
-summary(bio_duct_comb$or_change)
+summary(bio_5yr_comb$beta_change)
+summary(bio_5yr_comb$or_change)
 
 
 
 # calculate average change in OR
-bio_duct_comb_avg <- bio_duct_comb %>%
+bio_5yr_comb_avg <- bio_5yr_comb %>%
   group_by(metabolite, context_var) %>%
   summarise(or_change_avg=mean(or_change)) %>%
   ungroup()
 
 # filter variables that changed ORs by more than 10%
-sig_ion_change_10pct <- bio_duct_comb_avg %>%
+sig_ion_change_10pct <- bio_5yr_comb_avg %>%
   filter(abs(or_change_avg)>=.1)
 
 sig_ion_change_10pct
@@ -222,7 +226,7 @@ sig_ion_change_10pct %>% count(metabolite)
 ### point plots ####
 
 # try on one metabolite
-bio_duct_comb %>%
+bio_5yr_comb %>%
   filter(metabolite=="ion_63") %>%
   ggplot()+
   geom_point(aes(context_var, beta_change)) +
@@ -235,7 +239,7 @@ bio_duct_comb %>%
 
 
 # point plots for all metabolites
-bio_duct_comb %>%
+bio_5yr_comb %>%
   mutate(metabolite=fct_reorder(metabolite, beta_unadj)) %>%
   ggplot()+
   geom_point(aes(context_var, or_change), size=.8) +
@@ -255,7 +259,7 @@ bio_duct_comb %>%
 ### boxplots ####
 
 
-bio_duct_comb %>%
+bio_5yr_comb %>%
   mutate(metabolite=fct_reorder(metabolite, beta_unadj)) %>%
   ggplot()+
   geom_boxplot(aes(metabolite, or_change)) +
@@ -287,9 +291,9 @@ bio_duct_comb %>%
 
 
 # select list of significant metabolites
-ion_cols_duct <- unique(sig_ions_ductal$metabolite)
-names(ion_cols_duct) <- ion_cols_duct
-ion_cols_duct <- as.list(ion_cols_duct)
+ion_cols_5yr <- unique(sig_ions_5yr$metabolite)
+names(ion_cols_5yr) <- ion_cols_5yr
+ion_cols_5yr <- as.list(ion_cols_5yr)
 
 
 # function to run through all significant confounders
@@ -299,6 +303,8 @@ imp_glm_all <- function(ion) {
 
   # for each ion, run separate glm models on imputed data
   dfs <- lapply(full_imp, function(dat){
+
+    dat_5yr
     lr_dat <- dat[,colnames(dat) %in% cols_]
     lr_fit <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
     lr_fit
@@ -310,7 +316,7 @@ imp_glm_all <- function(ion) {
 
 
 # run all glm models on list of metabolites
-lr_adj_all <- lapply(ion_cols_duct, imp_glm_all)
+lr_adj_all <- lapply(ion_cols_5yr, imp_glm_all)
 
 # pool all results
 pool_adj_all <- lapply(lr_adj_all, function(x) summary(pool(x), conf.int=TRUE))

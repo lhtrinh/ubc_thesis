@@ -58,7 +58,7 @@ matchIds <- unique(my_df$match_id)
 length(matchIds)
 
 set.seed(2931)
-trainMatchId <- sample(matchIds, length(matchIds)*.8, replace = FALSE)
+trainMatchId <- sample(matchIds, length(matchIds)*.80, replace = FALSE)
 
 
 # Split data training (90%) and validation (10%) sets
@@ -113,6 +113,8 @@ lasso_train <- train(gp~.,
                      tuneGrid=lasso_grid,
                      metric="ROC")
 
+lasso_train
+
 # extract fold results
 lasso_train$results %>%
   filter(lambda==lasso_train$bestTune$lambda)
@@ -127,25 +129,25 @@ lasso_train$bestTune
 
 
 # Predict on holdout test set
-test <- predict(lasso_train, newdata=holdout_dat, type="prob")
-pred_prob <- test$CASE
-pred_label <- as.factor(ifelse(pred_prob>=0.5,"CASE", "CNTL"))
+lasso_pred <- predict(lasso_train, lambda=lasso_train$bestTune, newdata=holdout_dat, type="prob")
+lasso_pred_prob <- lasso_pred$CASE
+lasso_pred_label <- as.factor(ifelse(lasso_pred_prob>=0.5,"CASE", "CNTL"))
 true_label <- holdout_dat$gp
 
-table(pred_label, true_label)
+table(lasso_pred_label, true_label)
 
 
-roc_ <- roc(true_label, pred_prob)
-roc_
+lasso_roc <- roc(true_label, lasso_pred_prob)
+lasso_roc$auc
 
-plot(roc_)
+plot(lasso_roc)
+
+sensitivity(lasso_pred_label, true_label)
+specificity(lasso_pred_label, true_label)
+posPredValue(factor(lasso_pred_label), factor(true_label))
 
 
-sensitivity(pred_label, true_label)
-specificity(pred_label, true_label)
-posPredValue(factor(pred_label), factor(true_label))
-
-
+pred <- prediction(lasso_pred_label, true_label)
 
 
 
@@ -174,22 +176,22 @@ rf_train$bestTune
 
 #=============================#
 # Predict on holdout test set
-test <- predict(rf_train, newdata=holdout_dat, type="prob")
-pred_prob <- test$CASE
-pred_label <- as.factor(ifelse(pred_prob>=0.5,"CASE", "CNTL"))
+rf_pred <- predict(rf_train, newdata=holdout_dat, type="prob")
+rf_pred_prob <- rf_pred$CASE
+rf_pred_label <- as.factor(ifelse(rf_pred_prob>=0.6,"CASE", "CNTL"))
 true_label <- holdout_dat$gp
 
-table(pred_label, true_label)
+table(rf_pred_label, true_label)
 
 
-roc_ <- roc(true_label, pred_prob)
-roc_
-plot(roc_)
+rf_roc <- roc(true_label, rf_pred_prob)
+rf_roc
+plot(rf_roc)
 
 
-sensitivity(pred_label, true_label)
-specificity(pred_label, true_label)
-posPredValue(factor(pred_label), factor(true_label))
+sensitivity(rf_pred_label, true_label)
+specificity(rf_pred_label, true_label)
+posPredValue(factor(rf_pred_label), factor(true_label))
 
 
 
@@ -210,19 +212,65 @@ plsda_train <- train(gp~.,
 plsda_train
 
 # Predict on holdout test set
-test <- predict(plsda_train, newdata=holdout_dat, type="prob")
-pred_prob <- test$CASE
-pred_label <- as.factor(ifelse(pred_prob>=0.5,"CASE", "CNTL"))
+pls_pred <- predict(plsda_train, ncomp=plsda_train$bestTune, newdata=holdout_dat, type="prob")
+pls_pred_prob <- pls_pred$CASE
+pls_pred_label <- as.factor(ifelse(pls_pred_prob>=0.5,"CASE", "CNTL"))
 true_label <- holdout_dat$gp
 
-table(pred_label, true_label)
+table(pls_pred_label, true_label)
 
 
-roc_ <- roc(true_label, pred_prob)
-roc_
-plot(roc_)
+pls_roc <- roc(true_label, pls_pred_prob)
+pls_roc
+plot(pls_roc)
 
 
-sensitivity(pred_label, true_label)
-specificity(pred_label, true_label)
-posPredValue(factor(pred_label), factor(true_label))
+sensitivity(pls_pred_label, true_label)
+specificity(pls_pred_label, true_label)
+posPredValue(factor(pls_pred_label), factor(pls_pred_label))
+
+
+
+
+
+#=============================================================#
+## Support vector machine (SVM) ####
+svm_grid <- expand.grid(.mtry=1:15)
+
+svm_train <- train(gp~.,
+                  data=model_dat,
+                  method="svm",
+                  trControl=ctrl,
+                  tuneGrid=svm_grid,
+                  metric="ROC")
+
+
+# extract fold results
+svm_train$results %>%
+  filter(mtry==svm_train$bestTune$mtry)
+
+
+svm_train$bestTune
+
+
+
+
+#=============================#
+# Predict on holdout test set
+svm_pred <- predict(svm_train, newdata=holdout_dat, type="prob")
+svm_pred_prob <- svm_pred$CASE
+svm_pred_label <- as.factor(ifelse(svm_pred_prob>=0.6,"CASE", "CNTL"))
+true_label <- holdout_dat$gp
+
+table(svm_pred_label, true_label)
+
+
+svm_roc <- roc(true_label, svm_pred_prob)
+svm_roc
+plot(svm_roc)
+
+
+sensitivity(svm_pred_label, true_label)
+specificity(svm_pred_label, true_label)
+posPredValue(factor(svm_pred_label), factor(true_label))
+

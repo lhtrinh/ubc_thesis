@@ -165,7 +165,7 @@ rf_train
 
 #=============================#
 # Predict on holdout test set
-test <- predict(rf_train, newdata=holdout_dat, type="prob")
+test <- predict(rf_train, mtry=rf_train$bestTune, newdata=holdout_dat, type="prob")
 pred_prob <- test$CASE
 pred_label <- as.factor(ifelse(pred_prob>=0.5,"CASE", "CNTL"))
 true_label <- holdout_dat$gp

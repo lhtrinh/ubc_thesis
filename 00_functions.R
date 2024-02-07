@@ -105,10 +105,26 @@ import_meta_sc <- function(){
 
 
 
+## Import imputed data
+
+import_imp <- function() {
+  ## Impute data
+  path <- Sys.glob("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Bootstrapped_data/*.csv")
+  boot_list_import <- import_list(path)
+
+
+  for (i in 1:length(boot_list_import)){
+    boot_list_import[[i]][boot_list_import[[i]]==""] <- NA
+    boot_list_import[[i]][fct_cols] <- lapply(boot_list_import[[i]][fct_cols], as.factor)
+    boot_list_import[[i]][int_cols] <- lapply(boot_list_import[[i]][int_cols], as.integer)
+  }
+
+  boot_list_import
+}
 
 
 
-
+#==================================================================#
 
 # CALCULATE CV #########
 
