@@ -121,7 +121,6 @@ write_csv(sig_ions_erpr,
           file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_erpr.csv")
 
 
-sig_ions_erpr <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_erpr.csv")
 
 
 
@@ -136,6 +135,10 @@ sig_ions_erpr %>%
 
 
 #=======================================================================#
+sig_ions_erpr <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions_erpr.csv")
+
+
+
 ## Adjust for each contextual variables ####
 ion_cols_erpr <- sig_ions_erpr$metabolite
 names(ion_cols_erpr) <- ion_cols_erpr
@@ -281,7 +284,7 @@ bio_df_comb %>%
 
 
 
-###################====================##############################===#
+#===##############################===#
 
 #==================================================#
 ## Adjust for ALL contextual variables ####
@@ -303,6 +306,7 @@ imp_glm_all <- function(ion) {
 
   # for each ion, run separate glm models on imputed data
   dfs <- lapply(full_imp, function(dat){
+    dat_erpr <- dat[dat$match_id %in% dat$match_id[dat$er_status=="positive"|dat$pr_status=="positive"],]
     lr_dat <- dat[,colnames(dat) %in% cols_]
     lr_fit <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
     lr_fit
@@ -362,6 +366,91 @@ pool_adj_ion %>%
 
 write_csv(bio_comb_all, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/adjusted_logreg_results_all_vars.csv")
 
+
+
+
+
+
+
+#=======================#
+
+#==================================================#
+## Adjust for confounding ####
+
+
+sig_ion2 <- sig_ion_change_10pct %>%
+  filter(!context_var %in% c("bmi", "alc_ever"))
+
+# select list of significant metabolites
+ion_cols_erpr <- unique(sig_ion2$metabolite)
+names(ion_cols_erpr) <- ion_cols_erpr
+ion_cols_erpr <- as.list(ion_cols_erpr)
+ion_cols_erpr
+
+# function to run through all significant confounders
+imp_glm_conf <- function(ion) {
+
+  # select columns for logistic fit
+  sig_context_cols <- sig_ion2$context_var[sig_ion2$metabolite==ion]
+
+  cols_ <- c(y_col, match_cols, sig_context_cols, ion)
+
+  # for each ion, run separate glm models on imputed data
+  dfs <- lapply(full_imp, function(dat){
+    dat_erpr <- dat[dat$match_id %in% dat$match_id[dat$er_status=="positive"|dat$pr_status=="positive"],]
+    lr_dat <- dat[,colnames(dat) %in% cols_]
+    lr_fit <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
+    lr_fit
+  }
+  )
+}
+
+
+
+
+# run all glm models on list of metabolites
+lr_adj_conf <- lapply(ion_cols_erpr, imp_glm_conf)
+
+# pool all results
+pool_adj_conf <- lapply(lr_adj_conf, function(x) summary(pool(x), conf.int=TRUE))
+
+# select pooled results for metabolites only
+pool_adj_ion <- lapply(pool_adj_conf, function(x) x[grepl("^ion", x$term),]) %>%
+  bind_rows %>%
+  full_join(sig_ions_erpr,
+            by=join_by(term==metabolite),
+            keep=TRUE) %>%
+  arrange(beta_unadj)
+head(pool_adj_ion)
+
+
+
+# select pooled results for metabolites only
+# also exponentiate coefficient and 95% estimates
+pool_adj_ion %>%
+  mutate(
+    or_unadj=exp(beta_unadj),
+    lb_unadj=exp(ci_lb),
+    ub_unadj=exp(ci_ub),
+    or_adj=exp(estimate),
+    lb_adj=exp(`2.5 %`),
+    ub_adj=exp(`97.5 %`)) %>%
+  mutate(across(ends_with("adj"), function(x) round(x,2))) %>%
+  mutate(unadj=paste(or_unadj," (",lb_unadj,"-",ub_unadj,")", sep=""),
+         adj=paste(or_adj," (",lb_adj,"-",ub_adj,")",sep="")) %>%
+  arrange(or_adj) %>%
+  select(metabolite, unadj, adj)
+
+pool_adj_ion
+
+
+
+
+pool_adj_ion %>%
+  mutate(across(c(or_adj, ci_lb, ci_ub), function(x) round(x,2))) %>%
+  rename(metabolite=term) %>%
+  mutate(str_ = paste(or_adj, " (", ci_lb, "-", ci_ub, ")", sep="")) %>%
+  select(metabolite, str_)
 
 
 

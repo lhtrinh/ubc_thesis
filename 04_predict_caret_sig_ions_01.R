@@ -49,7 +49,7 @@ sig_ions_0.2 <- all_pvals$metabolite[all_pvals$q_fdr<=0.2]
 
 
 my_df <- full_all %>%
-  select(gp, studyid, match_id, all_of(sig_ions_0.1))
+  select(gp, studyid, match_id, all_of(match_cols), all_of(sig_ions_0.1))
 names(my_df)
 
 
@@ -127,23 +127,22 @@ lasso_train$bestTune
 
 
 # Predict on holdout test set
-test <- predict(lasso_train, newdata=holdout_dat, type="prob")
-pred_prob <- test$CASE
-pred_label <- as.factor(ifelse(pred_prob>=0.5,"CASE", "CNTL"))
+lasso_test <- predict(lasso_train, lambda=lambda_train$bestTune, newdata=holdout_dat, type="prob")
+lasso_pred_prob <- lasso_test$CASE
+lasso_pred_label <- as.factor(ifelse(lasso_pred_prob>=0.5,"CASE", "CNTL"))
 true_label <- holdout_dat$gp
 
-table(pred_label, true_label)
+table(lasso_pred_label, true_label)
 
 
-roc_ <- roc(true_label, pred_prob)
-roc_
-
-plot(roc_)
+lasso_roc <- roc(true_label, lasso_pred_prob)
 
 
-sensitivity(pred_label, true_label)
-specificity(pred_label, true_label)
-posPredValue(factor(pred_label), factor(true_label))
+lasso_roc$auc
+
+sensitivity(lasso_pred_label, true_label)
+specificity(lasso_pred_label, true_label)
+posPredValue(factor(lasso_pred_label), factor(true_label))
 
 
 
@@ -217,3 +216,41 @@ plot(roc_)
 sensitivity(pred_label, true_label)
 specificity(pred_label, true_label)
 posPredValue(factor(pred_label), factor(true_label))
+
+
+
+
+
+
+#===============================================================#
+## SVM ####
+library(kernlab)
+# svm_grid  <- expand.grid(sigma=seq(0,2,length=20))
+
+svm_train <- train(gp~.,
+                   data=model_dat,
+                   method="svmPoly",
+                   trControl=ctrl,
+                   tuneLength=10)
+
+svm_train$bestTune
+
+
+# Predict on holdout test set
+svm_test <- predict(svm_train, newdata=holdout_dat, type="prob")
+svm_pred_prob <- svm_test$CASE
+svm_pred_label <- as.factor(ifelse(svm_pred_prob>=0.5,"CASE", "CNTL"))
+true_label <- holdout_dat$gp
+
+table(svm_pred_label, true_label)
+
+
+roc_ <- roc(true_label, svm_pred_prob)
+roc_
+plot(roc_)
+
+
+sensitivity(svm_pred_label, true_label)
+specificity(svm_pred_label, true_label)
+posPredValue(factor(svm_pred_label), factor(true_label))
+

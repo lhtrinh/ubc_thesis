@@ -83,8 +83,8 @@ head(all_pvals_mnp)
 
 
 
-# write_csv(all_pvals_mnp,
-#           file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals_mnp.csv")
+write_csv(all_pvals_mnp,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals_mnp.csv")
 
 
 
