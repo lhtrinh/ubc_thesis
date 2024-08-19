@@ -43,7 +43,7 @@ bc_hormones <- bc_hormones %>%
 
 
 # add "BCGP" to match ID to distinguish from ATP match IDs
-bc_match_ind$match_id <- paste("bcgp", bc_match_ind$match_id, sep="_")
+bc_match_ind$match_id <- paste("BCGP", bc_match_ind$match_id, sep="_")
 # remove duplicates
 bc_match_ind <- bc_match_ind[!duplicated(bc_match_ind),]
 
@@ -56,7 +56,7 @@ bc_raw2 <- bc_raw %>%
   left_join(bc_hormones)
 
 
-bc_raw2$cohort <- "bcgp"
+bc_raw2$cohort <- "BCGP"
 dim(bc_raw2)
 
 
@@ -85,7 +85,7 @@ bc_raw4 <- bc_raw3 %>%
 # participant PB000321's age is 52, but written as 62
 bc_raw5 <- bc_raw4 %>%
   mutate(sdc_age_calc=ifelse(studyid=="PB000321", 52, sdc_age_calc))
-bc_raw5$sdc_age_calc[temp2$studyid=="PB000321"]
+bc_raw5$sdc_age_calc[bc_raw5$studyid=="PB000321"]
 
 
 bc_dat <- bc_raw5
@@ -149,7 +149,7 @@ atp_match_id <- atp_matched_pairs %>%
   pivot_longer(!match_id,
                names_to="gp",
                values_to="participantkey") %>%
-  mutate(match_id=paste("atp", match_id, sep="_"))
+  mutate(match_id=paste("ATP", match_id, sep="_"))
 atp_match_id %>% head()
 
 
@@ -230,7 +230,7 @@ summary(atp_raw3$collect_year)
 # Rename ATP identifier variable (participantkey) to studyid
 
 atp_raw4 <- atp_raw3 %>%
-  mutate(cohort="atp",
+  mutate(cohort="ATP",
          studyid=as.character(participantkey))
 
 
@@ -662,8 +662,8 @@ temp1 <- temp1 %>%
 
 # Combine morphology
 # BCGP = hist1, hist1_desc; ATP = acr_icd_o_morphology
-temp1 %>% filter(cohort=="bcgp") %>% count(gp, hist1, hist1_desc)
-temp1 %>% filter(cohort=="atp") %>% count(gp, acr_icd_o_morphology)
+temp1 %>% filter(cohort=="BCGP") %>% count(gp, hist1, hist1_desc)
+temp1 %>% filter(cohort=="ATP") %>% count(gp, acr_icd_o_morphology)
 
 
 
@@ -704,6 +704,20 @@ temp1 <- temp1 %>%
 temp1 %>% count(hist_subtype)
 
 
+# impute categories for collection year and age
+temp1 <- temp1 %>%
+  mutate(
+    collect_age_cat=cut(collect_age,
+                        breaks=c(35,45,55,65,max(full_dat$collect_age+1)),
+                        right=FALSE,
+                        label=c("age_3544", "age_4554", "age_5564", "age_65plus")),
+    collect_year_cat=cut(collect_year,
+                         breaks=c(2009,2012,2014,2017),
+                         right=FALSE,
+                         label=c("year_0911", "year_1213", "year_1416"))
+  )
+
+
 
 
 
@@ -728,17 +742,17 @@ rm_pair <- temp1 %>%
   filter(studyid %in% c("210503833", "210524604", "210503316") |
            str_detect(hist_code, "2$")) %>%
   select(match_id) %>%
-  inner_join(subset(temp1, select=c("match_id", "studyid", "hist_code")))
+  inner_join(subset(temp1, select=c("match_id", "studyid", "hist_code"))) %>%
+  pull(studyid)
 
-rm_pair
+rm_id <- c(rm_pair, "PB000429")
 
 
 
 # filter out pairs
 
 temp2 <- temp1 %>%
-  filter(studyid!="PB000429" &
-           !match_id %in% rm_pair$match_id)
+  filter(!(studyid %in% rm_id))
 
 
 
@@ -753,8 +767,8 @@ dim(temp2)
 # FINAL DATA SET ####
 
 full_dat <- temp2 %>%
-  select(gp, studyid, match_id, cohort,
-         sdc_age_calc, collect_yr_cat, collect_age,
+  select(gp, studyid, match_id, cohort, dup,
+         sdc_age_calc, collect_year, collect_year_cat, collect_age, collect_age_cat,
          menopause_stt,
          ethnicity,
          edu_level,
@@ -781,7 +795,7 @@ full_dat %>% count(cohort, gp)
 
 
 
-write_csv(full_dat, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/data_with_missing.csv")
+write_csv(full_dat, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/exposome/data_with_missing.csv")
 
 
 
@@ -850,28 +864,29 @@ atp_id_cw6 <- atp_id_cw5 %>%
 
 # final crosswalk table
 atp_id_cw <- atp_id_cw6 %>%
-  select(participantkey, dup, barcode)
-
+  mutate(studyid=participantkey, cohort="ATP") %>%
+  select(studyid, cohort, dup, barcode) %>%
+  filter(!(studyid %in% rm_id))
 
 
 head(atp_id_cw)
 dim(atp_id_cw)
 
 #======================================================================#
-# ID cw
+# ID crosswalk for both cohorts
 bcgp_id_cw <- temp2 %>%
-  filter(cohort=="bcgp") %>%
-  select(studyid, dup) %>%
+  filter(cohort=="BCGP") %>%
   mutate(barcode=studyid) %>%
-  rename(participantkey=studyid)
+  select(studyid, cohort, dup, barcode)
 
+bcgp_id_cw %>% count(dup)
 
 id_cw <- rbind(atp_id_cw, bcgp_id_cw) %>%
-  filter(!participantkey %in% rm_pair$studyid)
+  filter(!(studyid %in% rm_id))
 head(id_cw)
 dim(id_cw)
+n_distinct(id_cw$studyid)
 
-n_distinct(id_cw$participantkey) #1184 participants
 
 
 

@@ -6,7 +6,7 @@ library(tidyverse)
 library(rio)
 
 
-source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
+source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/gmet/00_functions.R")
 
 
 

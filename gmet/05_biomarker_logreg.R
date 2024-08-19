@@ -11,12 +11,12 @@ library(mice)
 
 
 
-source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
+source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/gmet/00_functions.R")
 
 
 full_dat <- import_survey()
 full_meta <- import_meta_sc()
-
+full_meta$match_id <- toupper(full_meta$match_id)
 
 full_all <- full_dat %>% full_join(full_meta)
 
@@ -39,11 +39,12 @@ unadj_logreg <- function(dat){
 
       # create data set with only required column names
       # (vectors of column names defined in "00_functions.R")
-      cols_ <- c(y_col, match_cols, ion)
-      lr_dat <- dat[,colnames(dat) %in% cols_]
+      lr_formula <- as.formula(paste0(
+        "gp~menopause_stt+cohort+collect_age+collect_year+",ion
+      ))
 
       # fit logistic regression model
-      lr_mod <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
+      lr_mod <- glm(lr_formula, data=dat, family=binomial(link="logit"))
       lr_confint <- confint(lr_mod)
 
       # extract p-value for metabolite
@@ -53,11 +54,17 @@ unadj_logreg <- function(dat){
       pval <- lr_coef[rownames(lr_coef)==ion, 4]
       ci_lb <- lr_confint[rownames(lr_confint)==ion, 1]
       ci_ub <- lr_confint[rownames(lr_confint)==ion, 2]
+      or <- exp(coef)
+      or_lb <- exp(ci_lb)
+      or_ub <- exp(ci_ub)
 
       data.frame(metabolite=ion,
-                 beta_unadj=coef,
-                 ci_lb=ci_lb,
-                 ci_ub=ci_ub,
+                 beta=coef,
+                 beta_lb=ci_lb,
+                 beta_ub=ci_ub,
+                 or=or,
+                 or_lb=or_lb,
+                 or_ub=or_ub,
                  pval=pval)
     }
   }
@@ -68,14 +75,14 @@ unadj_logreg <- function(dat){
 #===================================#
 ### Apply on full data set ####
 
-all_pvals <- unadj_logreg(full_all)
-head(all_pvals)
+unadjusted_results_all <- unadj_logreg(full_all)
+head(unadjusted_results_all)
 
 
 #===================================#
 ### Correction for multiple testing ####
-all_pvals$q_fdr <- p.adjust(all_pvals$pval, method="fdr")
-head(all_pvals)
+unadjusted_results_all$q_fdr <- p.adjust(unadjusted_results_all$pval, method="fdr")
+head(unadjusted_results_all)
 
 
 
@@ -86,31 +93,31 @@ head(all_pvals)
 
 
 
-write_csv(all_pvals,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals.csv")
+write_csv(unadjusted_results_all,
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/unadjusted_results_all.csv")
 
 
 
 
 
 #===================================#
-# all_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals.csv")
+# unadjusted_results_all <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/unadjusted_results_all.csv")
 
-summary(all_pvals)
-summary(all_pvals$q_fdr)
+summary(unadjusted_results_all)
+summary(unadjusted_results_all$q_fdr)
 
-table(all_pvals$q_fdr<=0.2)
-table(all_pvals$q_fdr<=0.1)
-
-
+table(unadjusted_results_all$q_fdr<=0.2)
+table(unadjusted_results_all$q_fdr<=0.1)
 
 
-sig_ions_df <- all_pvals %>%
+
+
+sig_ions_df <- unadjusted_results_all %>%
   filter(q_fdr<=0.1) %>%
-  arrange(beta_unadj)
+  arrange(beta)
 
 sig_ions_0.1 <- sig_ions_df$metabolite
-nonsig_ions_0.1 <- all_pvals$metabolite[all_pvals$q_fdr>0.1]
+nonsig_ions_0.1 <- unadjusted_results_all$metabolite[unadjusted_results_all$q_fdr>0.1]
 
 # sig_ions_df
 
@@ -119,17 +126,14 @@ nonsig_ions_0.1 <- all_pvals$metabolite[all_pvals$q_fdr>0.1]
 
 
 # record all vars for FDR level 0.2
-sig_ions_0.2 <- all_pvals$metabolite[all_pvals$q_fdr>0.2]
+sig_ions_0.2 <- unadjusted_results_all$metabolite[unadjusted_results_all$q_fdr<0.2]
 
 
 
 # save data for significant metabolites at fdr 0.1
 write_csv(sig_ions_df,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/sig_ions.csv")
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/gmet/sig_ions.csv")
 
-
-names(ion_cols) <- ion_cols
-ion_cols <- as.list(ion_cols)
 
 
 
@@ -140,7 +144,9 @@ ion_cols <- as.list(ion_cols)
 
 
 # full_imp <- import_list("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Bootstrapped_data/imp_list_%s.csv")
-ion_cols <- sig_ions_df$metabolite
+ion_cols <- unadjusted_results_all$metabolite[unadjusted_results_all$q_fdr<0.1]
+ion_cols
+
 names(ion_cols) <- ion_cols
 ion_cols <- as.list(ion_cols)
 
@@ -148,26 +154,34 @@ ion_cols <- as.list(ion_cols)
 
 n_imp <- 10
 
-imp_glm_sep_full <- function(ion) {
+adjust_each_var <- function(ion) {
   dfs <- foreach(var=context_cols, .combine="rbind", .verbose=TRUE) %:%
     foreach(i=1:n_imp, .combine="rbind", .verbose=TRUE) %do% {
       cols_ <- c(y_col, match_cols, var, ion)
       dat <- full_imp[[i]]
 
-      lr_dat <- dat[,colnames(dat) %in% cols_]
-      lr_fit <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
+      lr_formula <- as.formula(paste0(
+        "gp ~ cohort + menopause_stt + collect_year + collect_age + ",
+        ion, " + ", var
+      )
+      )
+
+      lr_fit <- glm(lr_formula, data=dat, family=binomial(link="logit"))
       lr_coef <- summary(lr_fit)$coefficients
 
       coef <- lr_coef[rownames(lr_coef)==ion, 1]
       pval <- lr_coef[rownames(lr_coef)==ion, 4]
 
-      data.frame(metabolite=ion, context_var=var, beta_adj=coef, pval_adj=pval)
+      data.frame(metabolite=ion,
+                 context_var=var,
+                 beta_adj=coef,
+                 pval_adj=pval)
     }
 }
 
 
 
-bio_all <- lapply(ion_cols, imp_glm_sep_full) %>% bind_rows
+bio_all <- lapply(ion_cols, adjust_each_var) %>% bind_rows
 
 
 bio_all_comb <- bio_all %>%
