@@ -8,10 +8,9 @@ library(rio)
 library(mice)
 
 
+setwd("C:/Users/lyhtr/OneDrive - UBC/Thesis/")
 
-
-
-source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/gmet/00_functions.R")
+source("Code/ubc_thesis/gmet/00_functions.R")
 
 
 full_dat <- import_survey()
@@ -20,9 +19,7 @@ full_meta$match_id <- toupper(full_meta$match_id)
 
 full_all <- full_dat %>% full_join(full_meta)
 
-
-
-full_imp <- import_imp()
+# full_imp <- import_imp()
 
 
 #=======================================================================#
@@ -45,7 +42,7 @@ unadj_logreg <- function(dat){
 
       # fit logistic regression model
       lr_mod <- glm(lr_formula, data=dat, family=binomial(link="logit"))
-      lr_confint <- confint(lr_mod)
+      lr_confint <- confint.default(lr_mod)
 
       # extract p-value for metabolite
       lr_coef <- summary(lr_mod)$coefficients
@@ -94,7 +91,7 @@ head(unadjusted_results_all)
 
 
 write_csv(unadjusted_results_all,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/unadjusted_results_all.csv")
+          file = "Data/gmet/unadjusted_results_all_wald.csv")
 
 
 
@@ -132,7 +129,7 @@ sig_ions_0.2 <- unadjusted_results_all$metabolite[unadjusted_results_all$q_fdr<0
 
 # save data for significant metabolites at fdr 0.1
 write_csv(sig_ions_df,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/gmet/sig_ions.csv")
+          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/gmet/sig_ions_wald.csv")
 
 
 

@@ -71,12 +71,11 @@ n_imp <- 10
 
 #=====================#
 
-
-
+setwd("C:/Users/lyhtr/OneDrive - UBC/Thesis/")
 
 # IMPORT DATA ####
 import_survey <- function(){
-  full_dat <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/gmet/data_with_missing.csv") %>%
+  full_dat <- read_csv("Data/gmet/data_with_missing.csv") %>%
     mutate(across(all_of(fct_cols), as.factor)) %>%
     mutate(across(all_of(int_cols), as.integer))
 
@@ -87,13 +86,13 @@ import_survey <- function(){
 
 # Import normalized metabolomics data
 import_meta_paired <- function(){
-  full_centered <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/gmet/normalized_metabolomics.csv")
+  full_centered <- read_csv("Data/gmet/normalized_metabolomics.csv")
   full_centered$match_id <- toupper(full_centered$match_id)
   full_centered
 }
 
 import_meta_sc <- function(){
-  full_sc <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/gmet/normalized_metabolomics_scaled.csv")
+  full_sc <- read_csv("Data/gmet/normalized_metabolomics_scaled.csv")
   full_sc$match_id <- toupper(full_sc$match_id)
   full_sc
 }
@@ -111,7 +110,7 @@ import_meta_sc <- function(){
 
 import_imp <- function() {
   ## Impute data
-  path <- Sys.glob("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/Bootstrapped_data/*.csv")
+  path <- Sys.glob("Thesis/Data/Bootstrapped_data/*.csv")
   boot_list_import <- import_list(path)
 
 

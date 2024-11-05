@@ -44,7 +44,7 @@ unadj_logreg <- function(dat){
 
       # fit logistic regression model
       lr_mod <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
-      lr_confint <- confint(lr_mod)
+      lr_confint <- confint.default(lr_mod)
 
       # extract p-value for metabolite
       lr_coef <- summary(lr_mod)$coefficients
@@ -53,11 +53,17 @@ unadj_logreg <- function(dat){
       pval <- lr_coef[rownames(lr_coef)==ion, 4]
       ci_lb <- lr_confint[rownames(lr_confint)==ion, 1]
       ci_ub <- lr_confint[rownames(lr_confint)==ion, 2]
+      or <- exp(coef)
+      or_lb <- exp(ci_lb)
+      or_ub <- exp(ci_ub)
 
       data.frame(metabolite=ion,
                  beta_unadj=coef,
                  ci_lb=ci_lb,
                  ci_ub=ci_ub,
+                 or=or,
+                 or_lb=or_lb,
+                 or_ub=or_ub,
                  pval=pval)
     }
 }
@@ -88,23 +94,10 @@ head(ductal_pvals)
 
 
 write_csv(ductal_pvals,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ductal_pvals.csv")
+          file = "Data/gmet/ductal_pvals_wald.csv")
 
 
 
-# x_ductal <- sig_ions_ductal %>%
-#   mutate(across(c(beta_unadj, ci_lb, ci_ub), function(x) round(exp(x), 2))) %>%
-#   mutate(or_ductal = paste(beta_unadj, " (", ci_lb, "-", ci_ub, ")", sep="")) %>%
-#   select(metabolite,or_ductal)
-#
-# x_ductal
-#
-# write_csv(x_ductal, file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Output/x_ductal.csv")
-#
-
-
-#===================================#
-# ductal_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/ductal_pvals.csv")
 
 summary(ductal_pvals)
 summary(ductal_pvals$q_fdr)

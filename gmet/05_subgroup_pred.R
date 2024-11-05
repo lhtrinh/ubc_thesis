@@ -1,5 +1,12 @@
 library(doParallel)
 library(rio)
+library(pROC);
+library(caret);
+library(randomForest);
+library(kernlab);
+library(tidyverse);
+library(rminer)
+library(doParallel)
 
 # # If error in parallel processing, use this function to clean up
 # unregister_dopar <- function() {
@@ -9,11 +16,7 @@ library(rio)
 
 
 
-
-
-source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
-
-
+setwd("C:/Users/lyhtr/OneDrive - UBC/Thesis/")
 
 
 #=============================#
@@ -23,11 +26,11 @@ source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
 
 full_dat <- import_survey()
 full_sc <- import_meta_sc()
-full_all <- full_dat %>% full_join(full_sc)
+full_all <- merge(full_dat, full_sc)
 
 
 
-all_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals.csv")
+all_pvals <- read_csv("Data/gmet/all_pvals.csv")
 
 
 # ion_cols <- all_pvals$metabolite
@@ -44,15 +47,15 @@ n_ion
 #   filter(menopause_stt==1) %>%
 #   select(gp, studyid, match_id, all_of(ion_cols))
 
-# ductal
-my_df <- full_all %>%
-  filter(match_id %in% full_all$match_id[full_all$hist_subtype=="ductal"]) %>%
-  select(gp, studyid, match_id, all_of(ion_cols))
-#
-# # er/pr
+# # ductal
 # my_df <- full_all %>%
-#   filter(match_id %in% full_all$match_id[full_all$er_status=="positive" | full_all$pr_status=="positive"])
+#   filter(match_id %in% full_all$match_id[full_all$hist_subtype=="ductal"]) %>%
+#   select(gp, studyid, match_id, all_of(ion_cols))
 
+# er/pr
+my_df <- full_all %>%
+  filter(match_id %in% full_all$match_id[full_all$hr_subtype=="hr_positive"]) %>%
+  select(gp, studyid, match_id, starts_with("ion"))
 
 
 
@@ -62,7 +65,7 @@ dim(my_df)
 
 #=============================#
 ## Set up parallel processing ##
-clust <- makeCluster(3)
+clust <- makeCluster(5)
 setDefaultCluster(clust)
 
 registerDoParallel(clust)
@@ -120,92 +123,95 @@ mods <- foreach(i=1:100, .errorhandling = "stop", .combine="rbind", .verbose=TRU
 
 
 
-  #=============================================================#
-  ## Lasso ####
-  # Create grid of hyper parameters
-  lasso_grid <- expand.grid(alpha=1,
-                            lambda=seq(.001,1,length=100))
-
-  # train
-  lasso_train <- train(gp~.,
-                       data=model_dat,
-                       method="glmnet",
-                       trControl=ctrl,
-                       tuneGrid=lasso_grid,
-                       metric="ROC")
-
-
-
-  # Predict on holdout test set
-  lasso_pred <- predict(lasso_train, ncomp=lasso_train$bestTune, newdata=holdout_dat, type="prob")
-  lasso_pred_prob <- lasso_pred$CASE
-  lasso_pred_label <- as.factor(ifelse(lasso_pred_prob>=0.5,"CASE", "CNTL"))
-  true_label <- holdout_dat$gp
-
-  # get prediction metrics
-  lasso_auc <- roc(true_label, lasso_pred_prob)$auc
-  lasso_sen <- sensitivity(lasso_pred_label, true_label)
-  lasso_spe <- specificity(lasso_pred_label, true_label)
-  lasso_ppv <- posPredValue(factor(lasso_pred_label), factor(true_label))
-  lasso_fscore <- 2*lasso_ppv*lasso_sen/(lasso_ppv+lasso_sen)
-
-  # get variable importance
-  lasso_imp <- varImp(lasso_train, scale=FALSE)$importance
-
-  # record in data table
-  lasso_mods <- data.frame(iter=rep(i, n_ion),
-                           method=rep("lasso", n_ion),
-                           auc=rep(lasso_auc, n_ion),
-                           sen=rep(lasso_sen, n_ion),
-                           spe=rep(lasso_spe, n_ion),
-                           ppv=rep(lasso_ppv, n_ion),
-                           fscore=rep(lasso_fscore, n_ion),
-                           var=rownames(lasso_imp),
-                           varImp=lasso_imp[[1]])
-
-
-
-
-
-
-  #=============================================================#
-  ## Partial least squares ####
-  plsda_train <- train(gp~.,
-                       data=model_dat,
-                       method="pls",
-                       scale=TRUE,
-                       trControl=ctrl,
-                       tuneLength=10,
-                       metric="ROC")
-
-
-  # Predict on holdout test set
-  plsda_pred <- predict(plsda_train, ncomp=plsda_train$bestTune, newdata=holdout_dat, type="prob")
-  plsda_pred_prob <- plsda_pred$CASE
-  plsda_pred_label <- as.factor(ifelse(plsda_pred_prob>=0.5,"CASE", "CNTL"))
-  true_label <- holdout_dat$gp
-
-
-  # get prediction metrics
-  plsda_auc <- roc(true_label, plsda_pred_prob)$auc
-  plsda_sen <- sensitivity(plsda_pred_label, true_label)
-  plsda_spe <- specificity(plsda_pred_label, true_label)
-  plsda_ppv <- posPredValue(factor(plsda_pred_label), factor(true_label))
-  plsda_fscore <- 2*plsda_ppv*plsda_sen/(plsda_ppv+plsda_sen)
-
-  # get variable importance
-  plsda_imp <- varImp(plsda_train, scale=FALSE)$importance
-
-  # record in data table
-  plsda_mods <- data.frame(iter=rep(i, n_ion),
-                           method=rep("plsda", n_ion),
-                           auc=rep(plsda_auc, n_ion),
-                           sen=rep(plsda_sen, n_ion),
-                           spe=rep(plsda_spe, n_ion),
-                           ppv=rep(plsda_ppv, n_ion),
-                           fscore=rep(plsda_fscore, n_ion),
-                           var=rownames(plsda_imp),
-                           varImp=plsda_imp[[1]])
+  # #=============================================================#
+  # ## Lasso ####
+  # # Create grid of hyper parameters
+  # lasso_grid <- expand.grid(alpha=1,
+  #                           lambda=seq(.001,1,length=100))
+  #
+  # lasso_train <- train(gp~.,
+  #                      data=model_dat,
+  #                      method="glmnet",
+  #                      trControl=ctrl,
+  #                      tuneGrid=lasso_grid,
+  #                      metric="ROC")
+  #
+  #
+  #
+  # # lasso_train
+  #
+  # # Predict on holdout test set
+  # lasso_pred <- predict(lasso_train, ncomp=lasso_train$bestTune, newdata=holdout_dat, type="prob")
+  # lasso_pred_prob <- lasso_pred$CASE
+  # lasso_pred_label <- as.factor(ifelse(lasso_pred_prob>=0.5,"CASE", "CNTL"))
+  # true_label <- holdout_dat$gp
+  #
+  # # get prediction metrics
+  # lasso_auc <- roc(true_label, lasso_pred_prob)$auc
+  # lasso_sen <- sensitivity(lasso_pred_label, true_label)
+  # lasso_spe <- specificity(lasso_pred_label, true_label)
+  # lasso_ppv <- posPredValue(factor(lasso_pred_label), factor(true_label))
+  # lasso_fscore <- 2*lasso_ppv*lasso_sen/(lasso_ppv+lasso_sen)
+  #
+  # # get variable importance
+  # lasso_imp <- varImp(lasso_train, scale=FALSE)$importance
+  #
+  # # record in data table
+  # lasso_mods <- data.frame(iter=rep(i, n_ion),
+  #                          method=rep("lasso", n_ion),
+  #                          auc=rep(lasso_auc, n_ion),
+  #                          sen=rep(lasso_sen, n_ion),
+  #                          spe=rep(lasso_spe, n_ion),
+  #                          ppv=rep(lasso_ppv, n_ion),
+  #                          fscore=rep(lasso_fscore, n_ion),
+  #                          var=rownames(lasso_imp),
+  #                          varImp=lasso_imp[[1]])
+  #
+  #
+  #
+  #
+  #
+  #
+  # #=============================================================#
+  # ## Partial least squares ####
+  # plsda_train <- train(gp~.,
+  #                      data=model_dat,
+  #                      method="pls",
+  #                      scale=TRUE,
+  #                      trControl=ctrl,
+  #                      tuneLength=10,
+  #                      # tuneGrid=rf_grid,
+  #                      metric="ROC")
+  #
+  # # plsda_train
+  #
+  # # Predict on holdout test set
+  # plsda_pred <- predict(plsda_train, ncomp=plsda_train$bestTune, newdata=holdout_dat, type="prob")
+  # plsda_pred_prob <- plsda_pred$CASE
+  # plsda_pred_label <- as.factor(ifelse(plsda_pred_prob>=0.5,"CASE", "CNTL"))
+  # true_label <- holdout_dat$gp
+  #
+  #
+  # # get prediction metrics
+  # plsda_auc <- roc(true_label, plsda_pred_prob)$auc
+  # plsda_sen <- sensitivity(plsda_pred_label, true_label)
+  # plsda_spe <- specificity(plsda_pred_label, true_label)
+  # plsda_ppv <- posPredValue(factor(plsda_pred_label), factor(true_label))
+  # plsda_fscore <- 2*plsda_ppv*plsda_sen/(plsda_ppv+plsda_sen)
+  #
+  # # get variable importance
+  # plsda_imp <- varImp(plsda_train, scale=FALSE)$importance
+  #
+  # # record in data table
+  # plsda_mods <- data.frame(iter=rep(i, n_ion),
+  #                          method=rep("plsda", n_ion),
+  #                          auc=rep(plsda_auc, n_ion),
+  #                          sen=rep(plsda_sen, n_ion),
+  #                          spe=rep(plsda_spe, n_ion),
+  #                          ppv=rep(plsda_ppv, n_ion),
+  #                          fscore=rep(plsda_fscore, n_ion),
+  #                          var=rownames(plsda_imp),
+  #                          varImp=plsda_imp[[1]])
 
 
 
@@ -251,129 +257,132 @@ mods <- foreach(i=1:100, .errorhandling = "stop", .combine="rbind", .verbose=TRU
                         varImp=rf_imp[[1]])
 
 
-
-    #===============================================================#
-    ## SVM linear kernel ####
-
-    # 10-fold cross-validation
-    svmlin_train <-   train(gp~.,
-                            data=model_dat,
-                            method="svmLinear",
-                            trControl=ctrl,
-                            tuneLength=10,
-                            metric="ROC")
-
-    # fit final model using rminer
-    svmlin_final_fit <- rminer::fit(
-      gp~.,
-      data=model_dat,
-      task="prob",
-      model="ksvm",
-      kernel="vanilladot",
-      C=svmlin_train$bestTune$C
-    )
-
-
-    # Predict on holdout test set
-    svmlin_test <- predict(svmlin_final_fit, newdata=holdout_dat, type="prob")
-    svmlin_pred_prob <- svmlin_test[,colnames(svmlin_test)=="CASE"]
-    svmlin_pred_label <- as.factor(ifelse(svmlin_pred_prob>=0.5,"CASE", "CNTL"))
-    true_label <- holdout_dat$gp
-
-
-    # get prediction metrics
-    svmlin_auc <- roc(true_label, svmlin_pred_prob)$auc
-    svmlin_sen <- sensitivity(svmlin_pred_label, true_label)
-    svmlin_spe <- specificity(svmlin_pred_label, true_label)
-    svmlin_ppv <- posPredValue(factor(svmlin_pred_label), factor(true_label))
-    svmlin_fscore <- 2*svmlin_ppv*svmlin_sen/(svmlin_ppv+svmlin_sen)
-
-    # get variable importance and corresponding var names
-    svmlin_imp <- Importance(svmlin_final_fit, model_dat)$imp[which(names(model_dat)!="gp")]
-    svmlin_var <- names(model_dat)[which(names(model_dat)!="gp")]
-
-    # record in data table
-    svmlin_mods <- data.frame(iter=rep(i, n_ion),
-                            method=rep("svmlin", n_ion),
-                            auc=rep(svmlin_auc, n_ion),
-                            sen=rep(svmlin_sen, n_ion),
-                            spe=rep(svmlin_spe, n_ion),
-                            ppv=rep(svmlin_ppv, n_ion),
-                            fscore=rep(svmlin_fscore, n_ion),
-                            var=svmlin_var,
-                            varImp=svmlin_imp)
-
-
-
-
-
-    #===============================================================#
-    ## SVM radial kernel ####
-
-    # 10-fold cross-validation
-    svmrad_train <-   train(gp~.,
-                            data=model_dat,
-                            method="svmRadial",
-                            trControl=ctrl,
-                            tuneLength=10,
-                            metric="ROC")
-
-    # fit final model using rminer
-    svmrad_final_fit <- rminer::fit(
-      gp~.,
-      data=model_dat,
-      task="prob",
-      model="ksvm",
-      kernel="rbfdot",
-      C=svmrad_train$bestTune$C,
-      kpar=list(sigma=svmrad_train$bestTune$sigma)
-    )
-
-
-    # Predict on holdout test set
-    svmrad_test <- predict(svmrad_final_fit, newdata=holdout_dat, type="prob")
-    svmrad_pred_prob <- svmrad_test[,colnames(svmrad_test)=="CASE"]
-    svmrad_pred_label <- as.factor(ifelse(svmrad_pred_prob>=0.5,"CASE", "CNTL"))
-    true_label <- holdout_dat$gp
-
-
-    # get prediction metrics
-    svmrad_auc <- roc(true_label, svmrad_pred_prob)$auc
-    svmrad_sen <- sensitivity(svmrad_pred_label, true_label)
-    svmrad_spe <- specificity(svmrad_pred_label, true_label)
-    svmrad_ppv <- posPredValue(factor(svmrad_pred_label), factor(true_label))
-    svmrad_fscore <- 2*svmrad_ppv*svmrad_sen/(svmrad_ppv+svmrad_sen)
-
-    # get variable importance and corresponding var names
-    svmrad_imp <- Importance(svmrad_final_fit, model_dat)$imp[which(names(model_dat)!="gp")]
-    svmrad_var <- names(model_dat)[which(names(model_dat)!="gp")]
-
-    # record in data table
-    svmrad_mods <- data.frame(iter=rep(i, n_ion),
-                              method=rep("svmrad", n_ion),
-                              auc=rep(svmrad_auc, n_ion),
-                              sen=rep(svmrad_sen, n_ion),
-                              spe=rep(svmrad_spe, n_ion),
-                              ppv=rep(svmrad_ppv, n_ion),
-                              fscore=rep(svmrad_fscore, n_ion),
-                              var=svmrad_var,
-                              varImp=svmrad_imp)
+  #
+  #   #===============================================================#
+  #   ## SVM linear kernel ####
+  #
+  #   # 10-fold cross-validation
+  #   svmlin_train <-   train(gp~.,
+  #                           data=model_dat,
+  #                           method="svmLinear",
+  #                           trControl=ctrl,
+  #                           tuneLength=10,
+  #                           metric="ROC")
+  #
+  #   # fit final model using rminer
+  #   svmlin_final_fit <- rminer::fit(
+  #     gp~.,
+  #     data=model_dat,
+  #     task="prob",
+  #     model="ksvm",
+  #     kernel="vanilladot",
+  #     C=svmlin_train$bestTune$C
+  #   )
+  #
+  #
+  #   # Predict on holdout test set
+  #   svmlin_test <- predict(svmlin_final_fit, newdata=holdout_dat, type="prob")
+  #   svmlin_pred_prob <- svmlin_test[,colnames(svmlin_test)=="CASE"]
+  #   svmlin_pred_label <- as.factor(ifelse(svmlin_pred_prob>=0.5,"CASE", "CNTL"))
+  #   true_label <- holdout_dat$gp
+  #
+  #
+  #   # get prediction metrics
+  #   svmlin_auc <- roc(true_label, svmlin_pred_prob)$auc
+  #   svmlin_sen <- sensitivity(svmlin_pred_label, true_label)
+  #   svmlin_spe <- specificity(svmlin_pred_label, true_label)
+  #   svmlin_ppv <- posPredValue(factor(svmlin_pred_label), factor(true_label))
+  #   svmlin_fscore <- 2*svmlin_ppv*svmlin_sen/(svmlin_ppv+svmlin_sen)
+  #
+  #   # get variable importance and corresponding var names
+  #   svmlin_imp <- Importance(svmlin_final_fit, model_dat)$imp[which(names(model_dat)!="gp")]
+  #   svmlin_var <- names(model_dat)[which(names(model_dat)!="gp")]
+  #
+  #   # record in data table
+  #   svmlin_mods <- data.frame(iter=rep(i, n_ion),
+  #                           method=rep("svmlin", n_ion),
+  #                           auc=rep(svmlin_auc, n_ion),
+  #                           sen=rep(svmlin_sen, n_ion),
+  #                           spe=rep(svmlin_spe, n_ion),
+  #                           ppv=rep(svmlin_ppv, n_ion),
+  #                           fscore=rep(svmlin_fscore, n_ion),
+  #                           var=svmlin_var,
+  #                           varImp=svmlin_imp)
+  #
+  #
+  #
+  #
+  #
+  #   #===============================================================#
+  #   ## SVM radial kernel ####
+  #
+  #   # 10-fold cross-validation
+  #   svmrad_train <-   train(gp~.,
+  #                           data=model_dat,
+  #                           method="svmRadial",
+  #                           trControl=ctrl,
+  #                           tuneLength=10,
+  #                           metric="ROC")
+  #
+  #   # fit final model using rminer
+  #   svmrad_final_fit <- rminer::fit(
+  #     gp~.,
+  #     data=model_dat,
+  #     task="prob",
+  #     model="ksvm",
+  #     kernel="rbfdot",
+  #     C=svmrad_train$bestTune$C,
+  #     kpar=list(sigma=svmrad_train$bestTune$sigma)
+  #   )
+  #
+  #
+  #   # Predict on holdout test set
+  #   svmrad_test <- predict(svmrad_final_fit, newdata=holdout_dat, type="prob")
+  #   svmrad_pred_prob <- svmrad_test[,colnames(svmrad_test)=="CASE"]
+  #   svmrad_pred_label <- as.factor(ifelse(svmrad_pred_prob>=0.5,"CASE", "CNTL"))
+  #   true_label <- holdout_dat$gp
+  #
+  #
+  #   # get prediction metrics
+  #   svmrad_auc <- roc(true_label, svmrad_pred_prob)$auc
+  #   svmrad_sen <- sensitivity(svmrad_pred_label, true_label)
+  #   svmrad_spe <- specificity(svmrad_pred_label, true_label)
+  #   svmrad_ppv <- posPredValue(factor(svmrad_pred_label), factor(true_label))
+  #   svmrad_fscore <- 2*svmrad_ppv*svmrad_sen/(svmrad_ppv+svmrad_sen)
+  #
+  #   # get variable importance and corresponding var names
+  #   svmrad_imp <- Importance(svmrad_final_fit, model_dat)$imp[which(names(model_dat)!="gp")]
+  #   svmrad_var <- names(model_dat)[which(names(model_dat)!="gp")]
+  #
+  #   # record in data table
+  #   svmrad_mods <- data.frame(iter=rep(i, n_ion),
+  #                             method=rep("svmrad", n_ion),
+  #                             auc=rep(svmrad_auc, n_ion),
+  #                             sen=rep(svmrad_sen, n_ion),
+  #                             spe=rep(svmrad_spe, n_ion),
+  #                             ppv=rep(svmrad_ppv, n_ion),
+  #                             fscore=rep(svmrad_fscore, n_ion),
+  #                             var=svmrad_var,
+  #                             varImp=svmrad_imp)
 
 
 
   #===============================================================#
   # Combine all outputs from the five sets of models
 
-  all_mods <- rbind(
-    lasso_mods,
-    plsda_mods,
-    rf_mods,
-    svmlin_mods,
-    svmrad_mods
-  )
+  all_mods <-# rbind(
+    # lasso_mods,
+    # plsda_mods,
+    rf_mods
+    # ,
+    # svmlin_mods,
+    # svmrad_mods
+#  )
 
   all_mods
 }
+
+
 
 
 
@@ -388,7 +397,7 @@ unregister_dopar()
 
 
 
-write_csv(mods, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/holdout_duct_meta_100times_varimp.csv")
+write_csv(mods, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/gmet/holdout_erpr_meta_100times_varimp.csv")
 
 print("Done with running all metabolites without risk factors.")
 

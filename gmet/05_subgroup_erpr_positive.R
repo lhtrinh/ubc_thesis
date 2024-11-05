@@ -10,7 +10,7 @@ library(rio)
 
 
 
-source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
+source("~/Thesis/Code/ubc_thesis/00_functions.R")
 
 
 full_dat <- import_survey()
@@ -48,7 +48,7 @@ unadj_logreg <- function(dat){
 
       # fit logistic regression model
       lr_mod <- glm(gp~., data=lr_dat, family=binomial(link="logit"))
-      lr_confint <- confint(lr_mod)
+      lr_confint <- confint.default(lr_mod)
 
       # extract p-value for metabolite
       lr_coef <- summary(lr_mod)$coefficients
@@ -57,11 +57,17 @@ unadj_logreg <- function(dat){
       pval <- lr_coef[rownames(lr_coef)==ion, 4]
       ci_lb <- lr_confint[rownames(lr_confint)==ion, 1]
       ci_ub <- lr_confint[rownames(lr_confint)==ion, 2]
+      or <- exp(coef)
+      or_lb <- exp(ci_lb)
+      or_ub <- exp(ci_ub)
 
       data.frame(metabolite=ion,
                  beta_unadj=coef,
                  ci_lb=ci_lb,
                  ci_ub=ci_ub,
+                 or=or,
+                 or_lb=or_lb,
+                 or_ub=or_ub,
                  pval=pval)
     }
 }
@@ -71,9 +77,10 @@ unadj_logreg <- function(dat){
 
 #===================================#
 ### Apply on full data set ####
-erpr_match_id <- full_all$match_id[full_all$er_status=="positive" | full_all$pr_status=="positive"]
+erpr_match_id <- full_all$match_id[full_all$hr_subtype=='hr_positive']
 full_erpr <- full_all %>% filter(match_id %in% erpr_match_id)
 
+full_erpr %>% count(gp)
 
 erpr_pvals <- unadj_logreg(full_erpr)
 head(erpr_pvals)
@@ -88,7 +95,7 @@ head(erpr_pvals)
 
 
 write_csv(erpr_pvals,
-          file = "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/erpr_pvals.csv")
+          file = "Data/gmet/erpr_pvals_wald.csv")
 
 
 

@@ -11,7 +11,7 @@ library(rio)
 
 
 
-source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/00_functions.R")
+source("C:/Users/lyhtr/OneDrive - UBC/Thesis/Code/ubc_thesis/gmet/00_functions.R")
 
 
 
@@ -28,12 +28,12 @@ full_all <- full_dat %>% full_join(full_sc)
 
 
 
-all_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/all_pvals.csv")
+all_pvals <- read_csv("C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/gmet/all_pvals.csv")
 
 
-# ion_cols <- all_pvals$metabolite
+
 ion_cols <- all_pvals$metabolite[all_pvals$q_fdr<=0.1]
-# ion_cols <- all_pvals$metabolite[all_pvals$q_fdr<=0.2]
+
 
 n_ion <- length(ion_cols)
 
@@ -109,95 +109,95 @@ mods <- foreach(i=1:100, .errorhandling = "pass", .combine="rbind", .verbose=TRU
 
 
 
-  #=============================================================#
-  ## Lasso ####
-  # Create grid of hyper parameters
-  lasso_grid <- expand.grid(alpha=1,
-                            lambda=seq(.001,1,length=100))
-
-  lasso_train <- train(gp~.,
-                       data=model_dat,
-                       method="glmnet",
-                       trControl=ctrl,
-                       tuneGrid=lasso_grid,
-                       metric="ROC")
-
-
-
-  # lasso_train
-
-  # Predict on holdout test set
-  lasso_pred <- predict(lasso_train, ncomp=lasso_train$bestTune, newdata=holdout_dat, type="prob")
-  lasso_pred_prob <- lasso_pred$CASE
-  lasso_pred_label <- as.factor(ifelse(lasso_pred_prob>=0.5,"CASE", "CNTL"))
-  true_label <- holdout_dat$gp
-
-  # get prediction metrics
-  lasso_auc <- roc(true_label, lasso_pred_prob)$auc
-  lasso_sen <- sensitivity(lasso_pred_label, true_label)
-  lasso_spe <- specificity(lasso_pred_label, true_label)
-  lasso_ppv <- posPredValue(factor(lasso_pred_label), factor(true_label))
-  lasso_fscore <- 2*lasso_ppv*lasso_sen/(lasso_ppv+lasso_sen)
-
-  # get variable importance
-  lasso_imp <- varImp(lasso_train, scale=FALSE)$importance
-
-  # record in data table
-  lasso_mods <- data.frame(iter=rep(i, n_ion),
-                           method=rep("lasso", n_ion),
-                           auc=rep(lasso_auc, n_ion),
-                           sen=rep(lasso_sen, n_ion),
-                           spe=rep(lasso_spe, n_ion),
-                           ppv=rep(lasso_ppv, n_ion),
-                           fscore=rep(lasso_fscore, n_ion),
-                           var=rownames(lasso_imp),
-                           varImp=lasso_imp[[1]])
-
-
-
-
-
-
-  #=============================================================#
-  ## Partial least squares ####
-  plsda_train <- train(gp~.,
-                       data=model_dat,
-                       method="pls",
-                       scale=TRUE,
-                       trControl=ctrl,
-                       tuneLength=10,
-                       # tuneGrid=rf_grid,
-                       metric="ROC")
-
-  # plsda_train
-
-  # Predict on holdout test set
-  plsda_pred <- predict(plsda_train, ncomp=plsda_train$bestTune, newdata=holdout_dat, type="prob")
-  plsda_pred_prob <- plsda_pred$CASE
-  plsda_pred_label <- as.factor(ifelse(plsda_pred_prob>=0.5,"CASE", "CNTL"))
-  true_label <- holdout_dat$gp
-
-
-  # get prediction metrics
-  plsda_auc <- roc(true_label, plsda_pred_prob)$auc
-  plsda_sen <- sensitivity(plsda_pred_label, true_label)
-  plsda_spe <- specificity(plsda_pred_label, true_label)
-  plsda_ppv <- posPredValue(factor(plsda_pred_label), factor(true_label))
-  plsda_fscore <- 2*plsda_ppv*plsda_sen/(plsda_ppv+plsda_sen)
-
-  # get variable importance
-  plsda_imp <- varImp(plsda_train, scale=FALSE)$importance
-
-  # record in data table
-  plsda_mods <- data.frame(iter=rep(i, n_ion),
-                           method=rep("plsda", n_ion),
-                           auc=rep(plsda_auc, n_ion),
-                           sen=rep(plsda_sen, n_ion),
-                           spe=rep(plsda_spe, n_ion),
-                           ppv=rep(plsda_ppv, n_ion),
-                           fscore=rep(plsda_fscore, n_ion),
-                           var=rownames(plsda_imp),
-                           varImp=plsda_imp[[1]])
+  # #=============================================================#
+  # ## Lasso ####
+  # # Create grid of hyper parameters
+  # lasso_grid <- expand.grid(alpha=1,
+  #                           lambda=seq(.001,1,length=100))
+  #
+  # lasso_train <- train(gp~.,
+  #                      data=model_dat,
+  #                      method="glmnet",
+  #                      trControl=ctrl,
+  #                      tuneGrid=lasso_grid,
+  #                      metric="ROC")
+  #
+  #
+  #
+  # # lasso_train
+  #
+  # # Predict on holdout test set
+  # lasso_pred <- predict(lasso_train, ncomp=lasso_train$bestTune, newdata=holdout_dat, type="prob")
+  # lasso_pred_prob <- lasso_pred$CASE
+  # lasso_pred_label <- as.factor(ifelse(lasso_pred_prob>=0.5,"CASE", "CNTL"))
+  # true_label <- holdout_dat$gp
+  #
+  # # get prediction metrics
+  # lasso_auc <- roc(true_label, lasso_pred_prob)$auc
+  # lasso_sen <- sensitivity(lasso_pred_label, true_label)
+  # lasso_spe <- specificity(lasso_pred_label, true_label)
+  # lasso_ppv <- posPredValue(factor(lasso_pred_label), factor(true_label))
+  # lasso_fscore <- 2*lasso_ppv*lasso_sen/(lasso_ppv+lasso_sen)
+  #
+  # # get variable importance
+  # lasso_imp <- varImp(lasso_train, scale=FALSE)$importance
+  #
+  # # record in data table
+  # lasso_mods <- data.frame(iter=rep(i, n_ion),
+  #                          method=rep("lasso", n_ion),
+  #                          auc=rep(lasso_auc, n_ion),
+  #                          sen=rep(lasso_sen, n_ion),
+  #                          spe=rep(lasso_spe, n_ion),
+  #                          ppv=rep(lasso_ppv, n_ion),
+  #                          fscore=rep(lasso_fscore, n_ion),
+  #                          var=rownames(lasso_imp),
+  #                          varImp=lasso_imp[[1]])
+  #
+  #
+  #
+  #
+  #
+  #
+  # #=============================================================#
+  # ## Partial least squares ####
+  # plsda_train <- train(gp~.,
+  #                      data=model_dat,
+  #                      method="pls",
+  #                      scale=TRUE,
+  #                      trControl=ctrl,
+  #                      tuneLength=10,
+  #                      # tuneGrid=rf_grid,
+  #                      metric="ROC")
+  #
+  # # plsda_train
+  #
+  # # Predict on holdout test set
+  # plsda_pred <- predict(plsda_train, ncomp=plsda_train$bestTune, newdata=holdout_dat, type="prob")
+  # plsda_pred_prob <- plsda_pred$CASE
+  # plsda_pred_label <- as.factor(ifelse(plsda_pred_prob>=0.5,"CASE", "CNTL"))
+  # true_label <- holdout_dat$gp
+  #
+  #
+  # # get prediction metrics
+  # plsda_auc <- roc(true_label, plsda_pred_prob)$auc
+  # plsda_sen <- sensitivity(plsda_pred_label, true_label)
+  # plsda_spe <- specificity(plsda_pred_label, true_label)
+  # plsda_ppv <- posPredValue(factor(plsda_pred_label), factor(true_label))
+  # plsda_fscore <- 2*plsda_ppv*plsda_sen/(plsda_ppv+plsda_sen)
+  #
+  # # get variable importance
+  # plsda_imp <- varImp(plsda_train, scale=FALSE)$importance
+  #
+  # # record in data table
+  # plsda_mods <- data.frame(iter=rep(i, n_ion),
+  #                          method=rep("plsda", n_ion),
+  #                          auc=rep(plsda_auc, n_ion),
+  #                          sen=rep(plsda_sen, n_ion),
+  #                          spe=rep(plsda_spe, n_ion),
+  #                          ppv=rep(plsda_ppv, n_ion),
+  #                          fscore=rep(plsda_fscore, n_ion),
+  #                          var=rownames(plsda_imp),
+  #                          varImp=plsda_imp[[1]])
 
 
 
@@ -357,8 +357,8 @@ mods <- foreach(i=1:100, .errorhandling = "pass", .combine="rbind", .verbose=TRU
   # Combine all outputs from the five sets of models
 
   all_mods <- rbind(
-    lasso_mods,
-    plsda_mods,
+    # lasso_mods,
+    # plsda_mods,
     rf_mods
     # ,
     # svmlin_mods,
@@ -382,6 +382,6 @@ unregister_dopar()
 
 
 
-write_csv(mods, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/holdout_results_FDR01_100times_no_svm_unscale_varimp.csv")
+write_csv(mods, "C:/Users/lyhtr/OneDrive - UBC/Thesis/Data/holdout_results_FDR01_100times_rf_unscale_varimp.csv")
 
 print("Done with running 100 FDR 0.1 without risk factors.")
