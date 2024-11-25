@@ -18,6 +18,7 @@ library(doParallel)
 
 setwd("C:/Users/lyhtr/OneDrive - UBC/Thesis/")
 
+source("Code/ubc_thesis/gmet/00_functions.R")
 
 #=============================#
 ## Assign modeling and holdout set ####
@@ -55,7 +56,7 @@ n_ion
 # er/pr
 my_df <- full_all %>%
   filter(match_id %in% full_all$match_id[full_all$hr_subtype=="hr_positive"]) %>%
-  select(gp, studyid, match_id, starts_with("ion"))
+  select(gp, studyid, match_id, all_of(ion_cols))
 
 
 
@@ -85,7 +86,7 @@ clusterExport(clust, c("my_df"), envir = .GlobalEnv)
 
 
 
-mods <- foreach(i=1:100, .errorhandling = "stop", .combine="rbind", .verbose=TRUE) %dopar% {
+mods <- foreach(i=1:2, .errorhandling = "stop", .combine="rbind", .verbose=TRUE) %do% {
   # Randomly sample by match ID
   matchIds <- unique(my_df$match_id)
 
@@ -382,7 +383,7 @@ mods <- foreach(i=1:100, .errorhandling = "stop", .combine="rbind", .verbose=TRU
   all_mods
 }
 
-
+rf_imp
 
 
 
